@@ -38,6 +38,7 @@ export interface WorkOrder {
   status: string;
   current_station_sequence?: number;
   created_at: string;
+  bom_revision_id?: number;
   logs: WorkOrderLog[];
 }
 

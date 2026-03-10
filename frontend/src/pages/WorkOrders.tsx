@@ -63,6 +63,7 @@ export default function WorkOrders() {
       render: (s: string) => <Tag color={STATUS_COLOR[s] || "default"}>{s}</Tag>,
     },
     { title: "Station Seq", dataIndex: "current_station_sequence", key: "seq", render: (v: number | null) => v ?? "—" },
+    { title: "BOM Rev", dataIndex: "bom_revision_id", key: "bom_rev", render: (v: number | null) => v ? `#${v}` : "—" },
     { title: "Created", dataIndex: "created_at", key: "created", render: (v: string) => new Date(v).toLocaleDateString() },
     {
       title: "Actions", key: "actions",

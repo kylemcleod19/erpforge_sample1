@@ -42,6 +42,10 @@ class WorkOrder(Base):
     status: Mapped[str] = mapped_column(String(50), default="queued")
     current_station_sequence: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Phase 2: snapshot the approved BOM revision at work order creation time
+    bom_revision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bom_revisions.id"), nullable=True
+    )
 
     order: Mapped["Order"] = relationship("Order")
     product: Mapped["Product"] = relationship("Product")

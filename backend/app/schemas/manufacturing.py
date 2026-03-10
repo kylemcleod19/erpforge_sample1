@@ -69,6 +69,7 @@ class WorkOrderOut(BaseModel):
     status: str
     current_station_sequence: int | None = None
     created_at: datetime
+    bom_revision_id: int | None = None
     logs: list[WorkOrderLogOut] = []
 
     model_config = {"from_attributes": True}

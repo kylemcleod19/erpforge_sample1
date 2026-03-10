@@ -1,13 +1,19 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import {
-  Button, Drawer, Form, Input, InputNumber, Popconfirm,
-  Space, Table, Typography, message
+  Button, Drawer, Form, Input, InputNumber, Popconfirm, Select,
+  Space, Switch, Table, Tag, Typography, message
 } from "antd";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Product, productsApi } from "../api/products";
 
 const { Title } = Typography;
+
+const LIFECYCLE_COLORS: Record<string, string> = {
+  prototype: "blue",
+  production: "green",
+  end_of_life: "red",
+};
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -52,6 +58,12 @@ export default function Products() {
         <Button type="link" onClick={() => navigate(`/products/${r.id}`)}>{name}</Button>
       ),
     },
+    { title: "Category", dataIndex: "category", key: "category", render: (v: string) => v || "—" },
+    {
+      title: "Status", dataIndex: "lifecycle_status", key: "lifecycle_status",
+      render: (v: string) => <Tag color={LIFECYCLE_COLORS[v] || "default"}>{v}</Tag>,
+    },
+    { title: "Make/Buy", dataIndex: "make_buy", key: "make_buy" },
     { title: "Price", dataIndex: "unit_price", key: "unit_price", render: (v: number) => `$${Number(v).toFixed(2)}` },
     { title: "Cost", dataIndex: "unit_cost", key: "unit_cost", render: (v: number) => `$${Number(v).toFixed(2)}` },
     { title: "UOM", dataIndex: "unit_of_measure", key: "uom" },
@@ -79,6 +91,7 @@ export default function Products() {
         title={editing ? "Edit Product" : "New Product"}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
+        width={480}
         footer={
           <Space style={{ float: "right" }}>
             <Button onClick={() => setDrawerOpen(false)}>Cancel</Button>
@@ -90,6 +103,31 @@ export default function Products() {
           <Form.Item name="sku" label="SKU" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="name" label="Name" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="description" label="Description"><Input.TextArea rows={3} /></Form.Item>
+          <Form.Item name="category" label="Category"><Input placeholder="e.g. Electronics, Mechanical" /></Form.Item>
+          <Form.Item name="lifecycle_status" label="Lifecycle Status" initialValue="production">
+            <Select options={[
+              { value: "prototype", label: "Prototype" },
+              { value: "production", label: "Production" },
+              { value: "end_of_life", label: "End of Life" },
+            ]} />
+          </Form.Item>
+          <Form.Item name="make_buy" label="Make/Buy" initialValue="buy">
+            <Select options={[
+              { value: "make", label: "Make" },
+              { value: "buy", label: "Buy" },
+              { value: "either", label: "Either" },
+            ]} />
+          </Form.Item>
+          <Form.Item name="traceability_type" label="Traceability" initialValue="none">
+            <Select options={[
+              { value: "none", label: "None" },
+              { value: "serial", label: "Serial" },
+              { value: "lot", label: "Lot" },
+            ]} />
+          </Form.Item>
+          <Form.Item name="compliance_required" label="Compliance Required" valuePropName="checked" initialValue={false}>
+            <Switch />
+          </Form.Item>
           <Form.Item name="unit_price" label="Unit Price" initialValue={0}><InputNumber min={0} precision={4} style={{ width: "100%" }} prefix="$" /></Form.Item>
           <Form.Item name="unit_cost" label="Unit Cost" initialValue={0}><InputNumber min={0} precision={4} style={{ width: "100%" }} prefix="$" /></Form.Item>
           <Form.Item name="unit_of_measure" label="UOM" initialValue="EA"><Input /></Form.Item>

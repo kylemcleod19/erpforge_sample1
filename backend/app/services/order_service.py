@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.models.inventory import InventoryBalance, InventoryReservation
 from app.models.manufacturing import ProductRouting, WorkOrder
 from app.models.order import Order, OrderLineItem
-from app.models.product import Product, ProductBOMItem
+from app.models.product import BOMRevision, Product, ProductBOMItem
 from app.models.purchasing import PurchaseRequest
 from app.models.quote import Quote
 
@@ -96,6 +96,20 @@ def _collect_sub_assemblies_with_routing(
         result.extend(_collect_sub_assemblies_with_routing(child_id, db, visited))
 
     return result
+
+
+def _get_approved_bom_revision_id(product_id: int, db: Session) -> int | None:
+    """Return the ID of the current approved BOM revision for a product, or None."""
+    rev = (
+        db.query(BOMRevision)
+        .filter(
+            BOMRevision.product_id == product_id,
+            BOMRevision.status == "approved",
+        )
+        .order_by(BOMRevision.revision_number.desc())
+        .first()
+    )
+    return rev.id if rev else None
 
 
 def convert_quote_to_order(quote_id: int, db: Session) -> Order:
@@ -179,6 +193,7 @@ def convert_quote_to_order(quote_id: int, db: Session) -> Order:
                 quantity=order_qty,
                 status="queued",
                 current_station_sequence=top_routing.sequence,
+                bom_revision_id=_get_approved_bom_revision_id(product_id, db),
             )
             db.add(wo)
 
@@ -198,6 +213,7 @@ def convert_quote_to_order(quote_id: int, db: Session) -> Order:
                     quantity=order_qty,
                     status="queued",
                     current_station_sequence=sub_routing.sequence,
+                    bom_revision_id=_get_approved_bom_revision_id(sub_id, db),
                 )
                 db.add(wo)
 
