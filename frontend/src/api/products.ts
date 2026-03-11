@@ -33,6 +33,7 @@ export interface BOMItem {
   reference_designator?: string;
   component_type?: string;
   notes?: string;
+  line_designator?: string;
   warnings?: string[];
 }
 
@@ -86,11 +87,31 @@ export interface CostNode {
   children: CostNode[];
 }
 
+// BOM CSV Import types
+
+export interface ColumnMapping {
+  csv_column: string;
+  mapped_to: string | null;
+}
+
+export interface ColumnDetectResponse {
+  csv_columns: string[];
+  suggested_mappings: ColumnMapping[];
+  available_fields: { field: string; description: string; required: boolean }[];
+  sample_rows: Record<string, string>[];
+}
+
 export interface BOMImportRow {
   parent_sku: string;
   child_sku: string;
   quantity: number;
   ref_designator?: string;
+  line_designator?: string;
+  unit_of_measure?: string;
+  component_type?: string;
+  notes?: string;
+  row_number?: number;
+  row_errors?: string[];
   parent_product_id?: number;
   child_product_id?: number;
 }
@@ -104,12 +125,21 @@ export interface BOMConflict {
   existing_ref_designator?: string;
   new_quantity: number;
   new_ref_designator?: string;
+  existing_line_designator?: string;
+  new_line_designator?: string;
+  existing_unit_of_measure?: string;
+  new_unit_of_measure?: string;
+  existing_component_type?: string;
+  new_component_type?: string;
+  existing_notes?: string;
+  new_notes?: string;
 }
 
 export interface BOMImportPreviewResponse {
   new_rows: BOMImportRow[];
   conflicts: BOMConflict[];
   errors: string[];
+  column_mappings?: ColumnMapping[];
 }
 
 export interface BOMImportApplyResponse {
@@ -141,6 +171,7 @@ export const productsApi = {
       reference_designator?: string;
       component_type?: string;
       notes?: string;
+      line_designator?: string;
     },
     revisionId?: number,
   ) =>
@@ -199,14 +230,39 @@ export const productsApi = {
 
   getCost: (id: number) => client.get<CostNode>(`/products/${id}/cost`).then((r) => r.data),
 
-  bomImportPreview: (file: File) => {
+  // BOM CSV Import — three-step flow
+  bomDetectColumns: (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
-    return client.post<BOMImportPreviewResponse>("/products/bom/import/preview", fd).then((r) => r.data);
+    return client
+      .post<ColumnDetectResponse>("/products/bom/import/detect-columns", fd)
+      .then((r) => r.data);
+  },
+
+  bomImportPreview: (file: File, columnMappings?: Record<string, string>) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (columnMappings) {
+      fd.append("column_mappings", JSON.stringify(columnMappings));
+    }
+    return client
+      .post<BOMImportPreviewResponse>("/products/bom/import/preview", fd)
+      .then((r) => r.data);
   },
 
   bomImportApply: (rows: BOMImportRow[], upsertPairs: [string, string][]) =>
     client
       .post<BOMImportApplyResponse>("/products/bom/import/apply", { rows, upsert_pairs: upsertPairs })
       .then((r) => r.data),
+
+  bomImportTemplate: (type: "pcba" | "mechanical") => {
+    // Trigger download via window
+    const url = `/api/products/bom/import/template?type=${type}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bom_template_${type}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  },
 };

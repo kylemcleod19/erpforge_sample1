@@ -1,17 +1,17 @@
-import { DeleteOutlined, LinkOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import { DeleteOutlined, DownloadOutlined, LinkOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import {
-  Alert, Badge, Button, Card, Descriptions, Form, Input, InputNumber, Modal,
+  Alert, Badge, Button, Card, Checkbox, Descriptions, Dropdown, Form, Input, InputNumber, Modal,
   Popconfirm, Select, Space, Table, Tag, Tree, Typography, message
 } from "antd";
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   BOMConflict, BOMImportPreviewResponse, BOMImportRow,
-  BOMItem, BOMItemAlternate, BOMRevision, CostNode,
-  Product, ProductCompliance, ProductSpec, productsApi
+  BOMItem, BOMItemAlternate, BOMRevision, ColumnDetectResponse, ColumnMapping,
+  CostNode, Product, ProductCompliance, ProductSpec, productsApi
 } from "../api/products";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const LIFECYCLE_COLORS: Record<string, string> = {
   prototype: "blue",
@@ -71,11 +71,15 @@ export default function ProductDetail() {
   const [compliance, setCompliance] = useState<ProductCompliance[]>([]);
   const [complianceForm] = Form.useForm();
 
-  // BOM CSV import
-  const [csvPreview, setCsvPreview] = useState<BOMImportPreviewResponse | null>(null);
+  // BOM CSV import — three-step flow
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvStep, setCsvStep] = useState<1 | 2 | 3>(1);
   const [csvModalOpen, setCsvModalOpen] = useState(false);
-  const [selectedConflicts, setSelectedConflicts] = useState<Set<string>>(new Set());
   const [csvUploading, setCsvUploading] = useState(false);
+  const [csvDetect, setCsvDetect] = useState<ColumnDetectResponse | null>(null);
+  const [csvMappings, setCsvMappings] = useState<Record<string, string | null>>({});
+  const [csvPreview, setCsvPreview] = useState<BOMImportPreviewResponse | null>(null);
+  const [selectedConflicts, setSelectedConflicts] = useState<Set<string>>(new Set());
   const csvInputRef = React.useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -227,7 +231,16 @@ export default function ProductDetail() {
     } catch (e: any) { message.error(e.message); }
   };
 
-  // ---- BOM CSV Import ----
+  // ---- BOM CSV Import — Three-step flow ----
+
+  const resetCsvState = () => {
+    setCsvFile(null);
+    setCsvStep(1);
+    setCsvDetect(null);
+    setCsvMappings({});
+    setCsvPreview(null);
+    setSelectedConflicts(new Set());
+  };
 
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -235,19 +248,46 @@ export default function ProductDetail() {
     e.target.value = "";
     setCsvUploading(true);
     try {
-      const preview = await productsApi.bomImportPreview(file);
+      const detect = await productsApi.bomDetectColumns(file);
+      setCsvFile(file);
+      setCsvDetect(detect);
+      // Initialize mappings from suggestions
+      const initMappings: Record<string, string | null> = {};
+      detect.suggested_mappings.forEach((m) => {
+        initMappings[m.csv_column] = m.mapped_to;
+      });
+      setCsvMappings(initMappings);
+      setCsvStep(1);
+      setCsvModalOpen(true);
+    } catch (e: any) {
+      message.error("Upload failed: " + e.message);
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  const handlePreviewWithMappings = async () => {
+    if (!csvFile) return;
+    setCsvUploading(true);
+    try {
+      // Build overrides: only include mapped columns
+      const overrides: Record<string, string> = {};
+      for (const [csvCol, field] of Object.entries(csvMappings)) {
+        if (field) overrides[csvCol] = field;
+      }
+      const preview = await productsApi.bomImportPreview(csvFile, overrides);
       if (preview.errors.length > 0 && preview.new_rows.length === 0 && preview.conflicts.length === 0) {
         preview.errors.forEach((err) => message.error(err, 6));
         return;
       }
       setCsvPreview(preview);
       setSelectedConflicts(new Set());
-      setCsvModalOpen(true);
+      setCsvStep(2);
       if (preview.errors.length > 0) {
         preview.errors.forEach((err) => message.warning(err, 6));
       }
     } catch (e: any) {
-      message.error("Upload failed: " + e.message);
+      message.error("Preview failed: " + e.message);
     } finally {
       setCsvUploading(false);
     }
@@ -266,6 +306,10 @@ export default function ProductDetail() {
           child_sku: c.child_sku,
           quantity: c.new_quantity,
           ref_designator: c.new_ref_designator,
+          line_designator: c.new_line_designator,
+          unit_of_measure: c.new_unit_of_measure,
+          component_type: c.new_component_type,
+          notes: c.new_notes,
           parent_product_id: c.parent_product_id,
           child_product_id: c.child_product_id,
         }))],
@@ -273,12 +317,17 @@ export default function ProductDetail() {
       );
       message.success(`Import done: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
       setCsvModalOpen(false);
-      setCsvPreview(null);
+      resetCsvState();
       load();
     } catch (e: any) {
       message.error("Apply failed: " + e.message);
     }
   };
+
+  // Check if required fields are mapped
+  const requiredFields = new Set(["parent_sku", "child_sku", "quantity"]);
+  const mappedFields = new Set(Object.values(csvMappings).filter(Boolean));
+  const missingRequired = [...requiredFields].filter((f) => !mappedFields.has(f));
 
   if (!product) return <div>Loading...</div>;
 
@@ -289,10 +338,11 @@ export default function ProductDetail() {
     { title: "Name", dataIndex: "child_product_name", key: "name" },
     { title: "Qty", dataIndex: "quantity", key: "qty" },
     { title: "UOM", dataIndex: "unit_of_measure", key: "uom" },
-    { title: "Ref Des", dataIndex: "reference_designator", key: "refdes", render: (v: string) => v || "—" },
+    { title: "Ref Des", dataIndex: "reference_designator", key: "refdes", render: (v: string) => v || "\u2014" },
+    { title: "Line Des", dataIndex: "line_designator", key: "linedes", render: (v: string) => v || "\u2014" },
     {
       title: "Type", dataIndex: "component_type", key: "comptype",
-      render: (v: string) => v ? <Tag>{v}</Tag> : "—",
+      render: (v: string) => v ? <Tag>{v}</Tag> : "\u2014",
     },
     {
       title: "", key: "actions",
@@ -310,6 +360,27 @@ export default function ProductDetail() {
     },
   ];
 
+  // Build combined rows table for CSV preview step 2
+  const previewTableData = csvPreview
+    ? [
+        ...csvPreview.new_rows.map((r, i) => ({ ...r, _key: `new-${i}`, _status: "new" as const })),
+        ...csvPreview.conflicts.map((c, i) => ({
+          parent_sku: c.parent_sku,
+          child_sku: c.child_sku,
+          quantity: c.new_quantity,
+          unit_of_measure: c.new_unit_of_measure,
+          ref_designator: c.new_ref_designator,
+          line_designator: c.new_line_designator,
+          component_type: c.new_component_type,
+          notes: c.new_notes,
+          row_number: undefined as number | undefined,
+          _key: `conflict-${i}`,
+          _status: "conflict" as const,
+          _conflict: c,
+        })),
+      ]
+    : [];
+
   return (
     <div>
       <Title level={3}>{product.name}</Title>
@@ -321,7 +392,7 @@ export default function ProductDetail() {
         <Descriptions.Item label="Revision">Rev {product.revision}</Descriptions.Item>
         <Descriptions.Item label="Unit Price">${Number(product.unit_price).toFixed(4)}</Descriptions.Item>
         <Descriptions.Item label="Unit Cost">${Number(product.unit_cost).toFixed(4)}</Descriptions.Item>
-        <Descriptions.Item label="Category">{product.category || "—"}</Descriptions.Item>
+        <Descriptions.Item label="Category">{product.category || "\u2014"}</Descriptions.Item>
         <Descriptions.Item label="Lifecycle">
           <Tag color={LIFECYCLE_COLORS[product.lifecycle_status] || "default"}>
             {product.lifecycle_status}
@@ -332,7 +403,7 @@ export default function ProductDetail() {
         <Descriptions.Item label="Compliance Required">
           {product.compliance_required ? <Tag color="orange">Yes</Tag> : "No"}
         </Descriptions.Item>
-        <Descriptions.Item label="Description" span={2}>{product.description || "—"}</Descriptions.Item>
+        <Descriptions.Item label="Description" span={2}>{product.description || "\u2014"}</Descriptions.Item>
       </Descriptions>
 
       {/* Phase 3: BOM line items (unscoped) */}
@@ -340,7 +411,18 @@ export default function ProductDetail() {
         title="Bill of Materials"
         style={{ marginBottom: 24 }}
         extra={
-          <>
+          <Space>
+            <Dropdown
+              menu={{
+                items: [
+                  { key: "pcba", label: "PCBA Template", icon: <DownloadOutlined /> },
+                  { key: "mechanical", label: "Mechanical Template", icon: <DownloadOutlined /> },
+                ],
+                onClick: ({ key }) => productsApi.bomImportTemplate(key as "pcba" | "mechanical"),
+              }}
+            >
+              <Button size="small" icon={<DownloadOutlined />}>Templates</Button>
+            </Dropdown>
             <input
               ref={csvInputRef}
               type="file"
@@ -356,13 +438,13 @@ export default function ProductDetail() {
             >
               Upload BOM CSV
             </Button>
-          </>
+          </Space>
         }
       >
         <Form form={bomForm} layout="inline" style={{ marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
           <Form.Item name="child_product_id" label="Component" rules={[{ required: true }]}>
             <Select style={{ width: 200 }} showSearch optionFilterProp="label"
-              options={otherProducts.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }))} />
+              options={otherProducts.map((p) => ({ value: p.id, label: `${p.sku} \u2014 ${p.name}` }))} />
           </Form.Item>
           <Form.Item name="quantity" label="Qty" rules={[{ required: true }]}>
             <InputNumber min={0.0001} precision={4} />
@@ -371,7 +453,10 @@ export default function ProductDetail() {
             <Input style={{ width: 60 }} />
           </Form.Item>
           <Form.Item name="reference_designator" label="Ref Des">
-            <Input style={{ width: 80 }} placeholder="R1, C4…" />
+            <Input style={{ width: 80 }} placeholder="R1, C4..." />
+          </Form.Item>
+          <Form.Item name="line_designator" label="Line Des">
+            <Input style={{ width: 80 }} placeholder="1, 2..." />
           </Form.Item>
           <Form.Item name="component_type" label="Type">
             <Select style={{ width: 130 }} allowClear
@@ -405,9 +490,9 @@ export default function ProductDetail() {
               title: "Status", dataIndex: "status", key: "status",
               render: (s: string) => <Tag color={REVISION_STATUS_COLORS[s] || "default"}>{s}</Tag>,
             },
-            { title: "Notes", dataIndex: "notes", key: "notes", render: (v: string) => v || "—" },
+            { title: "Notes", dataIndex: "notes", key: "notes", render: (v: string) => v || "\u2014" },
             { title: "Created", dataIndex: "created_at", key: "created", render: (v: string) => new Date(v).toLocaleDateString() },
-            { title: "Approved By", dataIndex: "approved_by", key: "approved_by", render: (v: string) => v || "—" },
+            { title: "Approved By", dataIndex: "approved_by", key: "approved_by", render: (v: string) => v || "\u2014" },
             {
               title: "Actions", key: "actions",
               render: (_: any, r: BOMRevision) => (
@@ -443,8 +528,9 @@ export default function ProductDetail() {
                 { title: "Name", dataIndex: "child_product_name", key: "name" },
                 { title: "Qty", dataIndex: "quantity", key: "qty" },
                 { title: "UOM", dataIndex: "unit_of_measure", key: "uom" },
-                { title: "Ref Des", dataIndex: "reference_designator", key: "refdes", render: (v: string) => v || "—" },
-                { title: "Type", dataIndex: "component_type", key: "type", render: (v: string) => v ? <Tag>{v}</Tag> : "—" },
+                { title: "Ref Des", dataIndex: "reference_designator", key: "refdes", render: (v: string) => v || "\u2014" },
+                { title: "Line Des", dataIndex: "line_designator", key: "linedes", render: (v: string) => v || "\u2014" },
+                { title: "Type", dataIndex: "component_type", key: "type", render: (v: string) => v ? <Tag>{v}</Tag> : "\u2014" },
               ]}
             />
           </div>
@@ -480,12 +566,12 @@ export default function ProductDetail() {
           columns={[
             { title: "Scope", dataIndex: "scope", key: "scope" },
             { title: "Cert Type", dataIndex: "cert_type", key: "cert_type", render: (v: string) => <Tag>{v}</Tag> },
-            { title: "Cert #", dataIndex: "cert_number", key: "cert_number", render: (v: string) => v || "—" },
-            { title: "Issued", dataIndex: "issued_date", key: "issued", render: (v: string) => v || "—" },
-            { title: "Expires", dataIndex: "expiry_date", key: "expiry", render: (v: string) => v || "—" },
+            { title: "Cert #", dataIndex: "cert_number", key: "cert_number", render: (v: string) => v || "\u2014" },
+            { title: "Issued", dataIndex: "issued_date", key: "issued", render: (v: string) => v || "\u2014" },
+            { title: "Expires", dataIndex: "expiry_date", key: "expiry", render: (v: string) => v || "\u2014" },
             {
               title: "Document", dataIndex: "document_url", key: "doc",
-              render: (v: string) => v ? <a href={v} target="_blank" rel="noreferrer"><LinkOutlined /> View</a> : "—",
+              render: (v: string) => v ? <a href={v} target="_blank" rel="noreferrer"><LinkOutlined /> View</a> : "\u2014",
             },
             {
               title: "", key: "del",
@@ -570,44 +656,191 @@ export default function ProductDetail() {
         </Form>
       </Modal>
 
-      {/* Modal: BOM CSV import conflicts */}
+      {/* Modal: BOM CSV Import — Three-step */}
       <Modal
-        title="BOM CSV Import"
+        title={`BOM CSV Import \u2014 Step ${csvStep} of 2`}
         open={csvModalOpen}
-        onOk={handleCsvApply}
-        onCancel={() => { setCsvModalOpen(false); setCsvPreview(null); }}
-        okText="Apply Import"
-        width={800}
+        onCancel={() => { setCsvModalOpen(false); resetCsvState(); }}
+        width={900}
+        footer={
+          csvStep === 1 ? (
+            <Space>
+              <Button onClick={() => { setCsvModalOpen(false); resetCsvState(); }}>Cancel</Button>
+              <Button
+                type="primary"
+                loading={csvUploading}
+                disabled={missingRequired.length > 0}
+                onClick={handlePreviewWithMappings}
+              >
+                Preview Import
+              </Button>
+            </Space>
+          ) : (
+            <Space>
+              <Button onClick={() => setCsvStep(1)}>Back to Mapping</Button>
+              <Button onClick={() => { setCsvModalOpen(false); resetCsvState(); }}>Cancel</Button>
+              <Button type="primary" onClick={handleCsvApply}>Apply Import</Button>
+            </Space>
+          )
+        }
       >
-        {csvPreview && (
+        {csvStep === 1 && csvDetect && (
           <>
+            <Text strong>Map CSV columns to BOM fields</Text>
+            {missingRequired.length > 0 && (
+              <Alert
+                type="error"
+                showIcon
+                style={{ marginTop: 8, marginBottom: 8 }}
+                message={`Required fields not mapped: ${missingRequired.join(", ")}`}
+              />
+            )}
+            <Table
+              rowKey="csv_column"
+              size="small"
+              dataSource={csvDetect.suggested_mappings}
+              pagination={false}
+              style={{ marginTop: 8 }}
+              columns={[
+                {
+                  title: "CSV Column",
+                  dataIndex: "csv_column",
+                  key: "csv_col",
+                  render: (col: string) => {
+                    const sample = csvDetect.sample_rows[0]?.[col];
+                    return (
+                      <div>
+                        <div><strong>{col}</strong></div>
+                        {sample && <Text type="secondary" style={{ fontSize: 12 }}>e.g. {sample}</Text>}
+                      </div>
+                    );
+                  },
+                },
+                {
+                  title: "Maps To",
+                  key: "mapped_to",
+                  render: (_: any, row: ColumnMapping) => (
+                    <Select
+                      style={{ width: 220 }}
+                      value={csvMappings[row.csv_column] ?? undefined}
+                      allowClear
+                      placeholder="Ignore this column"
+                      onChange={(val) => {
+                        setCsvMappings((prev) => ({ ...prev, [row.csv_column]: val || null }));
+                      }}
+                      options={[
+                        ...csvDetect.available_fields.map((f) => ({
+                          value: f.field,
+                          label: `${f.field}${f.required ? " *" : ""}`,
+                          disabled: Object.entries(csvMappings).some(
+                            ([k, v]) => v === f.field && k !== row.csv_column,
+                          ),
+                        })),
+                      ]}
+                    />
+                  ),
+                },
+                {
+                  title: "Description",
+                  key: "desc",
+                  render: (_: any, row: ColumnMapping) => {
+                    const field = csvDetect.available_fields.find(
+                      (f) => f.field === csvMappings[row.csv_column],
+                    );
+                    return field ? <Text type="secondary">{field.description}</Text> : "\u2014";
+                  },
+                },
+              ]}
+            />
+          </>
+        )}
+
+        {csvStep === 2 && csvPreview && (
+          <>
+            {/* Mapping summary */}
+            {csvPreview.column_mappings && csvPreview.column_mappings.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <Text type="secondary">
+                  Column mapping:{" "}
+                  {csvPreview.column_mappings
+                    .filter((m) => m.mapped_to)
+                    .map((m) => `${m.csv_column} \u2192 ${m.mapped_to}`)
+                    .join(", ")}
+                </Text>
+              </div>
+            )}
+
+            {csvPreview.errors.length > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message={`${csvPreview.errors.length} warning(s)`}
+                description={
+                  <ul style={{ margin: 0, paddingLeft: 20 }}>
+                    {csvPreview.errors.slice(0, 10).map((e, i) => <li key={i}>{e}</li>)}
+                    {csvPreview.errors.length > 10 && <li>...and {csvPreview.errors.length - 10} more</li>}
+                  </ul>
+                }
+              />
+            )}
+
             <p>
               <strong>{csvPreview.new_rows.length}</strong> new rows will be inserted.
               {csvPreview.conflicts.length > 0 && (
-                <> <strong>{csvPreview.conflicts.length}</strong> conflict(s) found — check rows below to overwrite.</>
+                <> <strong>{csvPreview.conflicts.length}</strong> conflict(s) found &mdash; check rows below to overwrite.</>
               )}
             </p>
-            {csvPreview.conflicts.length > 0 && (
-              <Table
-                rowKey={(r: BOMConflict) => `${r.parent_sku}|||${r.child_sku}`}
-                size="small"
-                dataSource={csvPreview.conflicts}
-                pagination={false}
-                rowSelection={{
-                  selectedRowKeys: Array.from(selectedConflicts),
-                  onChange: (keys) => setSelectedConflicts(new Set(keys as string[])),
-                  getCheckboxProps: () => ({}),
-                }}
-                columns={[
-                  { title: "Parent SKU", dataIndex: "parent_sku", key: "parent_sku" },
-                  { title: "Child SKU", dataIndex: "child_sku", key: "child_sku" },
-                  { title: "Existing Qty", dataIndex: "existing_quantity", key: "existing_qty" },
-                  { title: "New Qty", dataIndex: "new_quantity", key: "new_qty" },
-                  { title: "Existing Ref", dataIndex: "existing_ref_designator", key: "existing_ref", render: (v: string) => v || "—" },
-                  { title: "New Ref", dataIndex: "new_ref_designator", key: "new_ref", render: (v: string) => v || "—" },
-                ]}
-              />
-            )}
+
+            <Table
+              rowKey="_key"
+              size="small"
+              dataSource={previewTableData}
+              pagination={{ pageSize: 50 }}
+              scroll={{ x: 900 }}
+              columns={[
+                {
+                  title: "Row", dataIndex: "row_number", key: "row", width: 60,
+                  render: (v: number) => v ?? "\u2014",
+                },
+                { title: "Parent SKU", dataIndex: "parent_sku", key: "parent_sku" },
+                { title: "Child SKU", dataIndex: "child_sku", key: "child_sku" },
+                { title: "Qty", dataIndex: "quantity", key: "qty", width: 70 },
+                { title: "UOM", dataIndex: "unit_of_measure", key: "uom", width: 60, render: (v: string) => v || "\u2014" },
+                { title: "Ref Des", dataIndex: "ref_designator", key: "refdes", render: (v: string) => v || "\u2014" },
+                { title: "Line Des", dataIndex: "line_designator", key: "linedes", render: (v: string) => v || "\u2014" },
+                { title: "Type", dataIndex: "component_type", key: "type", render: (v: string) => v || "\u2014" },
+                { title: "Notes", dataIndex: "notes", key: "notes", ellipsis: true, render: (v: string) => v || "\u2014" },
+                {
+                  title: "Status", key: "status", width: 120,
+                  render: (_: any, r: any) => {
+                    if (r._status === "new") return <Tag color="green">New</Tag>;
+                    if (r._status === "conflict") {
+                      const key = `${r.parent_sku}|||${r.child_sku}`;
+                      return (
+                        <Space>
+                          <Tag color="orange">Conflict</Tag>
+                          <Checkbox
+                            checked={selectedConflicts.has(key)}
+                            onChange={(e) => {
+                              setSelectedConflicts((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(key);
+                                else next.delete(key);
+                                return next;
+                              });
+                            }}
+                          >
+                            Overwrite
+                          </Checkbox>
+                        </Space>
+                      );
+                    }
+                    return null;
+                  },
+                },
+              ]}
+            />
           </>
         )}
       </Modal>
@@ -623,7 +856,7 @@ export default function ProductDetail() {
         <Form form={altForm} layout="inline" style={{ marginBottom: 12 }}>
           <Form.Item name="alternate_product_id" label="Alternate" rules={[{ required: true }]}>
             <Select style={{ width: 220 }} showSearch optionFilterProp="label"
-              options={otherProducts.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }))} />
+              options={otherProducts.map((p) => ({ value: p.id, label: `${p.sku} \u2014 ${p.name}` }))} />
           </Form.Item>
           <Form.Item name="priority" label="Priority" initialValue={1}>
             <InputNumber min={1} style={{ width: 70 }} />
@@ -640,7 +873,7 @@ export default function ProductDetail() {
               { title: "SKU", dataIndex: "alternate_product_sku", key: "sku" },
               { title: "Name", dataIndex: "alternate_product_name", key: "name" },
               { title: "Priority", dataIndex: "priority", key: "priority" },
-              { title: "Notes", dataIndex: "notes", key: "notes", render: (v: string) => v || "—" },
+              { title: "Notes", dataIndex: "notes", key: "notes", render: (v: string) => v || "\u2014" },
               {
                 title: "", key: "del",
                 render: (_: any, r: BOMItemAlternate) => (

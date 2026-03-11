@@ -83,6 +83,7 @@ class ProductBOMItem(Base):
     reference_designator: Mapped[str | None] = mapped_column(String(50))
     component_type: Mapped[str | None] = mapped_column(String(30))
     notes: Mapped[str | None] = mapped_column(Text)
+    line_designator: Mapped[str | None] = mapped_column(String(100))
 
     parent_product: Mapped["Product"] = relationship(
         "Product", foreign_keys=[parent_product_id], back_populates="bom_items",

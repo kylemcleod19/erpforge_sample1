@@ -1,7 +1,9 @@
+import json
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -24,6 +26,7 @@ from app.schemas.product import (
     BOMRevisionApprove,
     BOMRevisionCreate,
     BOMRevisionOut,
+    ColumnDetectResponse,
     CostNode,
     ProductComplianceCreate,
     ProductComplianceOut,
@@ -33,7 +36,12 @@ from app.schemas.product import (
     ProductSpecOut,
     ProductUpdate,
 )
-from app.services.bom_import_service import apply_bom_import, parse_bom_csv
+from app.services.bom_import_service import (
+    apply_bom_import,
+    detect_columns,
+    generate_template,
+    parse_bom_csv,
+)
 from app.services.bom_service import compute_cost_rollup, get_bom_tree
 
 logger = logging.getLogger(__name__)
@@ -51,6 +59,7 @@ def _enrich_bom_item(item: ProductBOMItem, warnings: list[str] | None = None) ->
         reference_designator=item.reference_designator,
         component_type=item.component_type,
         notes=item.notes,
+        line_designator=item.line_designator,
         child_product_name=item.child_product.name if item.child_product else None,
         child_product_sku=item.child_product.sku if item.child_product else None,
         warnings=warnings or [],
@@ -88,13 +97,26 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
 # BOM CSV Import (must be declared before /{product_id} routes)
 # ---------------------------------------------------------------------------
 
+@router.post("/bom/import/detect-columns", response_model=ColumnDetectResponse)
+async def bom_import_detect_columns(file: UploadFile = File(...)):
+    content = await file.read()
+    return detect_columns(content)
+
+
 @router.post("/bom/import/preview", response_model=BOMImportPreviewResponse)
 async def bom_import_preview(
     file: UploadFile = File(...),
+    column_mappings: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     content = await file.read()
-    return parse_bom_csv(content, db)
+    overrides: dict[str, str] | None = None
+    if column_mappings:
+        try:
+            overrides = json.loads(column_mappings)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid column_mappings JSON")
+    return parse_bom_csv(content, db, column_overrides=overrides)
 
 
 @router.post("/bom/import/apply", response_model=BOMImportApplyResponse)
@@ -103,6 +125,16 @@ def bom_import_apply(
     db: Session = Depends(get_db),
 ):
     return apply_bom_import(payload, db)
+
+
+@router.get("/bom/import/template")
+def bom_import_template(type: str = Query("pcba", pattern="^(pcba|mechanical)$")):
+    csv_content = generate_template(type)
+    return PlainTextResponse(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="bom_template_{type}.csv"'},
+    )
 
 
 @router.get("/{product_id}", response_model=ProductOut)

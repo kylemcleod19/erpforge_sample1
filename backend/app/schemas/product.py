@@ -36,6 +36,7 @@ class BOMItemBase(BaseModel):
     reference_designator: str | None = None
     component_type: str | None = None
     notes: str | None = None
+    line_designator: str | None = None
 
 
 class BOMItemCreate(BOMItemBase):
@@ -191,11 +192,37 @@ class ProductComplianceOut(ProductComplianceCreate):
 # BOM CSV Import
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# BOM CSV Import — Column Detection
+# ---------------------------------------------------------------------------
+
+class ColumnMapping(BaseModel):
+    csv_column: str
+    mapped_to: str | None = None
+
+
+class ColumnDetectResponse(BaseModel):
+    csv_columns: list[str]
+    suggested_mappings: list[ColumnMapping]
+    available_fields: list[dict]
+    sample_rows: list[dict[str, str]]
+
+
+# ---------------------------------------------------------------------------
+# BOM CSV Import — Preview / Apply
+# ---------------------------------------------------------------------------
+
 class BOMImportRow(BaseModel):
     parent_sku: str
     child_sku: str
     quantity: Decimal
     ref_designator: str | None = None
+    line_designator: str | None = None
+    unit_of_measure: str | None = None
+    component_type: str | None = None
+    notes: str | None = None
+    row_number: int | None = None
+    row_errors: list[str] = []
     # Resolved IDs (filled in by service after SKU lookup)
     parent_product_id: int | None = None
     child_product_id: int | None = None
@@ -210,12 +237,21 @@ class BOMConflict(BaseModel):
     existing_ref_designator: str | None
     new_quantity: Decimal
     new_ref_designator: str | None
+    existing_line_designator: str | None = None
+    new_line_designator: str | None = None
+    existing_unit_of_measure: str | None = None
+    new_unit_of_measure: str | None = None
+    existing_component_type: str | None = None
+    new_component_type: str | None = None
+    existing_notes: str | None = None
+    new_notes: str | None = None
 
 
 class BOMImportPreviewResponse(BaseModel):
     new_rows: list[BOMImportRow]
     conflicts: list[BOMConflict]
     errors: list[str]
+    column_mappings: list[ColumnMapping] = []
 
 
 class BOMImportApplyRequest(BaseModel):
