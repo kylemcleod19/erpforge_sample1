@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -14,6 +14,9 @@ from app.models.product import (
     ProductSpec,
 )
 from app.schemas.product import (
+    BOMImportApplyRequest,
+    BOMImportApplyResponse,
+    BOMImportPreviewResponse,
     BOMItemAlternateCreate,
     BOMItemAlternateOut,
     BOMItemCreate,
@@ -30,6 +33,7 @@ from app.schemas.product import (
     ProductSpecOut,
     ProductUpdate,
 )
+from app.services.bom_import_service import apply_bom_import, parse_bom_csv
 from app.services.bom_service import compute_cost_rollup, get_bom_tree
 
 logger = logging.getLogger(__name__)
@@ -58,8 +62,14 @@ def _enrich_bom_item(item: ProductBOMItem, warnings: list[str] | None = None) ->
 # ---------------------------------------------------------------------------
 
 @router.get("", response_model=list[ProductOut])
-def list_products(db: Session = Depends(get_db)):
-    return db.query(Product).order_by(Product.sku).all()
+def list_products(
+    item_type: list[str] | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Product)
+    if item_type:
+        q = q.filter(Product.item_type.in_(item_type))
+    return q.order_by(Product.sku).all()
 
 
 @router.post("", response_model=ProductOut, status_code=201)
@@ -72,6 +82,27 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(product)
     return product
+
+
+# ---------------------------------------------------------------------------
+# BOM CSV Import (must be declared before /{product_id} routes)
+# ---------------------------------------------------------------------------
+
+@router.post("/bom/import/preview", response_model=BOMImportPreviewResponse)
+async def bom_import_preview(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    content = await file.read()
+    return parse_bom_csv(content, db)
+
+
+@router.post("/bom/import/apply", response_model=BOMImportApplyResponse)
+def bom_import_apply(
+    payload: BOMImportApplyRequest,
+    db: Session = Depends(get_db),
+):
+    return apply_bom_import(payload, db)
 
 
 @router.get("/{product_id}", response_model=ProductOut)

@@ -23,7 +23,7 @@ class Product(Base):
     category: Mapped[str | None] = mapped_column(String(100))
     revision: Mapped[int] = mapped_column(Integer, default=1)
     lifecycle_status: Mapped[str] = mapped_column(String(30), default="production")
-    make_buy: Mapped[str] = mapped_column(String(10), default="buy")
+    item_type: Mapped[str] = mapped_column(String(30), default="finished_good")
     traceability_type: Mapped[str] = mapped_column(String(20), default="none")
     compliance_required: Mapped[bool] = mapped_column(Boolean, default=False)
 

@@ -114,7 +114,7 @@ class ProductBase(BaseModel):
     category: str | None = None
     revision: int = 1
     lifecycle_status: str = "production"
-    make_buy: str = "buy"
+    item_type: str = "finished_good"
     traceability_type: str = "none"
     compliance_required: bool = False
 
@@ -133,7 +133,7 @@ class ProductUpdate(BaseModel):
     category: str | None = None
     revision: int | None = None
     lifecycle_status: str | None = None
-    make_buy: str | None = None
+    item_type: str | None = None
     traceability_type: str | None = None
     compliance_required: bool | None = None
 
@@ -185,3 +185,46 @@ class ProductComplianceOut(ProductComplianceCreate):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# BOM CSV Import
+# ---------------------------------------------------------------------------
+
+class BOMImportRow(BaseModel):
+    parent_sku: str
+    child_sku: str
+    quantity: Decimal
+    ref_designator: str | None = None
+    # Resolved IDs (filled in by service after SKU lookup)
+    parent_product_id: int | None = None
+    child_product_id: int | None = None
+
+
+class BOMConflict(BaseModel):
+    parent_sku: str
+    parent_product_id: int
+    child_sku: str
+    child_product_id: int
+    existing_quantity: Decimal
+    existing_ref_designator: str | None
+    new_quantity: Decimal
+    new_ref_designator: str | None
+
+
+class BOMImportPreviewResponse(BaseModel):
+    new_rows: list[BOMImportRow]
+    conflicts: list[BOMConflict]
+    errors: list[str]
+
+
+class BOMImportApplyRequest(BaseModel):
+    rows: list[BOMImportRow]
+    # List of [parent_sku, child_sku] pairs from conflicts to overwrite
+    upsert_pairs: list[list[str]]
+
+
+class BOMImportApplyResponse(BaseModel):
+    created: int
+    updated: int
+    skipped: int

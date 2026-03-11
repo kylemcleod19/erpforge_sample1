@@ -15,7 +15,12 @@ const LIFECYCLE_COLORS: Record<string, string> = {
   end_of_life: "red",
 };
 
-export default function Products() {
+interface ProductsProps {
+  itemTypes?: string[];
+  pageTitle?: string;
+}
+
+export default function Products({ itemTypes, pageTitle = "Products" }: ProductsProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -25,13 +30,19 @@ export default function Products() {
 
   const load = async () => {
     setLoading(true);
-    try { setProducts(await productsApi.list()); }
+    try { setProducts(await productsApi.list(itemTypes)); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [JSON.stringify(itemTypes)]);
 
-  const openCreate = () => { setEditing(null); form.resetFields(); setDrawerOpen(true); };
+  const openCreate = () => {
+    setEditing(null);
+    form.resetFields();
+    // Pre-set item_type to first type in the current section
+    if (itemTypes?.length) form.setFieldValue("item_type", itemTypes[0]);
+    setDrawerOpen(true);
+  };
   const openEdit = (p: Product) => { setEditing(p); form.setFieldsValue(p); setDrawerOpen(true); };
 
   const onSave = async () => {
@@ -50,12 +61,17 @@ export default function Products() {
     catch (e: any) { message.error(e.message); }
   };
 
+  const detailPath = (id: number) =>
+    itemTypes?.includes("component") || itemTypes?.includes("raw_material")
+      ? `/components/${id}`
+      : `/products/${id}`;
+
   const columns = [
     { title: "SKU", dataIndex: "sku", key: "sku" },
     {
       title: "Name", dataIndex: "name", key: "name",
       render: (name: string, r: Product) => (
-        <Button type="link" onClick={() => navigate(`/products/${r.id}`)}>{name}</Button>
+        <Button type="link" onClick={() => navigate(detailPath(r.id))}>{name}</Button>
       ),
     },
     { title: "Category", dataIndex: "category", key: "category", render: (v: string) => v || "—" },
@@ -63,7 +79,7 @@ export default function Products() {
       title: "Status", dataIndex: "lifecycle_status", key: "lifecycle_status",
       render: (v: string) => <Tag color={LIFECYCLE_COLORS[v] || "default"}>{v}</Tag>,
     },
-    { title: "Make/Buy", dataIndex: "make_buy", key: "make_buy" },
+    { title: "Item Type", dataIndex: "item_type", key: "item_type" },
     { title: "Price", dataIndex: "unit_price", key: "unit_price", render: (v: number) => `$${Number(v).toFixed(2)}` },
     { title: "Cost", dataIndex: "unit_cost", key: "unit_cost", render: (v: number) => `$${Number(v).toFixed(2)}` },
     { title: "UOM", dataIndex: "unit_of_measure", key: "uom" },
@@ -80,15 +96,17 @@ export default function Products() {
     },
   ];
 
+  const defaultItemType = itemTypes?.[0] ?? "finished_good";
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-        <Title level={3} style={{ margin: 0 }}>Products</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>New Product</Button>
+        <Title level={3} style={{ margin: 0 }}>{pageTitle}</Title>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>New {pageTitle.replace(/s$/, "")}</Button>
       </div>
       <Table rowKey="id" dataSource={products} columns={columns} loading={loading} />
       <Drawer
-        title={editing ? "Edit Product" : "New Product"}
+        title={editing ? `Edit ${pageTitle.replace(/s$/, "")}` : `New ${pageTitle.replace(/s$/, "")}`}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         width={480}
@@ -111,11 +129,12 @@ export default function Products() {
               { value: "end_of_life", label: "End of Life" },
             ]} />
           </Form.Item>
-          <Form.Item name="make_buy" label="Make/Buy" initialValue="buy">
+          <Form.Item name="item_type" label="Item Type" initialValue={defaultItemType}>
             <Select options={[
-              { value: "make", label: "Make" },
-              { value: "buy", label: "Buy" },
-              { value: "either", label: "Either" },
+              { value: "finished_good", label: "Finished Good" },
+              { value: "assembly", label: "Assembly" },
+              { value: "component", label: "Component" },
+              { value: "raw_material", label: "Raw Material" },
             ]} />
           </Form.Item>
           <Form.Item name="traceability_type" label="Traceability" initialValue="none">

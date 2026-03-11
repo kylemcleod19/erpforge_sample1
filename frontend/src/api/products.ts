@@ -13,7 +13,7 @@ export interface Product {
   category?: string;
   revision: number;
   lifecycle_status: string;
-  make_buy: string;
+  item_type: string;
   traceability_type: string;
   compliance_required: boolean;
   bom_items: BOMItem[];
@@ -86,8 +86,45 @@ export interface CostNode {
   children: CostNode[];
 }
 
+export interface BOMImportRow {
+  parent_sku: string;
+  child_sku: string;
+  quantity: number;
+  ref_designator?: string;
+  parent_product_id?: number;
+  child_product_id?: number;
+}
+
+export interface BOMConflict {
+  parent_sku: string;
+  parent_product_id: number;
+  child_sku: string;
+  child_product_id: number;
+  existing_quantity: number;
+  existing_ref_designator?: string;
+  new_quantity: number;
+  new_ref_designator?: string;
+}
+
+export interface BOMImportPreviewResponse {
+  new_rows: BOMImportRow[];
+  conflicts: BOMConflict[];
+  errors: string[];
+}
+
+export interface BOMImportApplyResponse {
+  created: number;
+  updated: number;
+  skipped: number;
+}
+
 export const productsApi = {
-  list: () => client.get<Product[]>("/products").then((r) => r.data),
+  list: (itemTypes?: string[]) => {
+    const params = itemTypes?.length
+      ? new URLSearchParams(itemTypes.map((t) => ["item_type", t]))
+      : undefined;
+    return client.get<Product[]>("/products", { params }).then((r) => r.data);
+  },
   get: (id: number) => client.get<Product>(`/products/${id}`).then((r) => r.data),
   create: (data: Partial<Product>) => client.post<Product>("/products", data).then((r) => r.data),
   update: (id: number, data: Partial<Product>) =>
@@ -161,4 +198,15 @@ export const productsApi = {
     client.delete(`/products/${productId}/compliance/${certId}`),
 
   getCost: (id: number) => client.get<CostNode>(`/products/${id}/cost`).then((r) => r.data),
+
+  bomImportPreview: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return client.post<BOMImportPreviewResponse>("/products/bom/import/preview", fd).then((r) => r.data);
+  },
+
+  bomImportApply: (rows: BOMImportRow[], upsertPairs: [string, string][]) =>
+    client
+      .post<BOMImportApplyResponse>("/products/bom/import/apply", { rows, upsert_pairs: upsertPairs })
+      .then((r) => r.data),
 };

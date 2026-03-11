@@ -1,4 +1,4 @@
-import { DeleteOutlined, LinkOutlined, PlusOutlined } from "@ant-design/icons";
+import { DeleteOutlined, LinkOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import {
   Alert, Badge, Button, Card, Descriptions, Form, Input, InputNumber, Modal,
   Popconfirm, Select, Space, Table, Tag, Tree, Typography, message
@@ -6,6 +6,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
+  BOMConflict, BOMImportPreviewResponse, BOMImportRow,
   BOMItem, BOMItemAlternate, BOMRevision, CostNode,
   Product, ProductCompliance, ProductSpec, productsApi
 } from "../api/products";
@@ -69,6 +70,13 @@ export default function ProductDetail() {
   // Phase 4: Compliance
   const [compliance, setCompliance] = useState<ProductCompliance[]>([]);
   const [complianceForm] = Form.useForm();
+
+  // BOM CSV import
+  const [csvPreview, setCsvPreview] = useState<BOMImportPreviewResponse | null>(null);
+  const [csvModalOpen, setCsvModalOpen] = useState(false);
+  const [selectedConflicts, setSelectedConflicts] = useState<Set<string>>(new Set());
+  const [csvUploading, setCsvUploading] = useState(false);
+  const csvInputRef = React.useRef<HTMLInputElement>(null);
 
   const load = async () => {
     const [p, all, cost, revs, comp] = await Promise.all([
@@ -219,6 +227,59 @@ export default function ProductDetail() {
     } catch (e: any) { message.error(e.message); }
   };
 
+  // ---- BOM CSV Import ----
+
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setCsvUploading(true);
+    try {
+      const preview = await productsApi.bomImportPreview(file);
+      if (preview.errors.length > 0 && preview.new_rows.length === 0 && preview.conflicts.length === 0) {
+        preview.errors.forEach((err) => message.error(err, 6));
+        return;
+      }
+      setCsvPreview(preview);
+      setSelectedConflicts(new Set());
+      setCsvModalOpen(true);
+      if (preview.errors.length > 0) {
+        preview.errors.forEach((err) => message.warning(err, 6));
+      }
+    } catch (e: any) {
+      message.error("Upload failed: " + e.message);
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  const handleCsvApply = async () => {
+    if (!csvPreview) return;
+    const upsertPairs: [string, string][] = Array.from(selectedConflicts).map((key) => {
+      const [ps, cs] = key.split("|||");
+      return [ps, cs];
+    });
+    try {
+      const result = await productsApi.bomImportApply(
+        [...csvPreview.new_rows, ...csvPreview.conflicts.map((c) => ({
+          parent_sku: c.parent_sku,
+          child_sku: c.child_sku,
+          quantity: c.new_quantity,
+          ref_designator: c.new_ref_designator,
+          parent_product_id: c.parent_product_id,
+          child_product_id: c.child_product_id,
+        }))],
+        upsertPairs,
+      );
+      message.success(`Import done: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
+      setCsvModalOpen(false);
+      setCsvPreview(null);
+      load();
+    } catch (e: any) {
+      message.error("Apply failed: " + e.message);
+    }
+  };
+
   if (!product) return <div>Loading...</div>;
 
   const otherProducts = allProducts.filter((p) => p.id !== pid);
@@ -266,7 +327,7 @@ export default function ProductDetail() {
             {product.lifecycle_status}
           </Tag>
         </Descriptions.Item>
-        <Descriptions.Item label="Make/Buy">{product.make_buy}</Descriptions.Item>
+        <Descriptions.Item label="Item Type">{product.item_type}</Descriptions.Item>
         <Descriptions.Item label="Traceability">{product.traceability_type}</Descriptions.Item>
         <Descriptions.Item label="Compliance Required">
           {product.compliance_required ? <Tag color="orange">Yes</Tag> : "No"}
@@ -275,7 +336,29 @@ export default function ProductDetail() {
       </Descriptions>
 
       {/* Phase 3: BOM line items (unscoped) */}
-      <Card title="Bill of Materials" style={{ marginBottom: 24 }}>
+      <Card
+        title="Bill of Materials"
+        style={{ marginBottom: 24 }}
+        extra={
+          <>
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv"
+              style={{ display: "none" }}
+              onChange={handleCsvUpload}
+            />
+            <Button
+              icon={<UploadOutlined />}
+              size="small"
+              loading={csvUploading}
+              onClick={() => csvInputRef.current?.click()}
+            >
+              Upload BOM CSV
+            </Button>
+          </>
+        }
+      >
         <Form form={bomForm} layout="inline" style={{ marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
           <Form.Item name="child_product_id" label="Component" rules={[{ required: true }]}>
             <Select style={{ width: 200 }} showSearch optionFilterProp="label"
@@ -485,6 +568,48 @@ export default function ProductDetail() {
             <Input placeholder="Name or engineer ID" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Modal: BOM CSV import conflicts */}
+      <Modal
+        title="BOM CSV Import"
+        open={csvModalOpen}
+        onOk={handleCsvApply}
+        onCancel={() => { setCsvModalOpen(false); setCsvPreview(null); }}
+        okText="Apply Import"
+        width={800}
+      >
+        {csvPreview && (
+          <>
+            <p>
+              <strong>{csvPreview.new_rows.length}</strong> new rows will be inserted.
+              {csvPreview.conflicts.length > 0 && (
+                <> <strong>{csvPreview.conflicts.length}</strong> conflict(s) found — check rows below to overwrite.</>
+              )}
+            </p>
+            {csvPreview.conflicts.length > 0 && (
+              <Table
+                rowKey={(r: BOMConflict) => `${r.parent_sku}|||${r.child_sku}`}
+                size="small"
+                dataSource={csvPreview.conflicts}
+                pagination={false}
+                rowSelection={{
+                  selectedRowKeys: Array.from(selectedConflicts),
+                  onChange: (keys) => setSelectedConflicts(new Set(keys as string[])),
+                  getCheckboxProps: () => ({}),
+                }}
+                columns={[
+                  { title: "Parent SKU", dataIndex: "parent_sku", key: "parent_sku" },
+                  { title: "Child SKU", dataIndex: "child_sku", key: "child_sku" },
+                  { title: "Existing Qty", dataIndex: "existing_quantity", key: "existing_qty" },
+                  { title: "New Qty", dataIndex: "new_quantity", key: "new_qty" },
+                  { title: "Existing Ref", dataIndex: "existing_ref_designator", key: "existing_ref", render: (v: string) => v || "—" },
+                  { title: "New Ref", dataIndex: "new_ref_designator", key: "new_ref", render: (v: string) => v || "—" },
+                ]}
+              />
+            )}
+          </>
+        )}
       </Modal>
 
       {/* Modal: alternates */}

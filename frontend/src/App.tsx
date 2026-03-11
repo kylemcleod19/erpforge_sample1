@@ -2,6 +2,7 @@ import {
   AppstoreOutlined,
   AuditOutlined,
   BarChartOutlined,
+  BlockOutlined,
   CarOutlined,
   ContainerOutlined,
   FileTextOutlined,
@@ -30,6 +31,7 @@ const { Header, Sider, Content } = Layout;
 
 const NAV_ITEMS = [
   { key: "/products", icon: <AppstoreOutlined />, label: <Link to="/products">Products</Link> },
+  { key: "/components", icon: <BlockOutlined />, label: <Link to="/components">Components</Link> },
   { key: "/quotes", icon: <FileTextOutlined />, label: <Link to="/quotes">Quotes</Link> },
   { key: "/orders", icon: <ShoppingCartOutlined />, label: <Link to="/orders">Orders</Link> },
   { key: "/work-orders", icon: <ToolOutlined />, label: <Link to="/work-orders">Work Orders</Link> },
@@ -62,9 +64,11 @@ function AppLayout() {
       <Layout style={{ marginLeft: 220 }}>
         <Content style={{ padding: "24px", minHeight: "calc(100vh - 64px)" }}>
           <Routes>
-            <Route path="/" element={<Products />} />
-            <Route path="/products" element={<Products />} />
+            <Route path="/" element={<Products itemTypes={["finished_good", "assembly"]} pageTitle="Products" />} />
+            <Route path="/products" element={<Products itemTypes={["finished_good", "assembly"]} pageTitle="Products" />} />
             <Route path="/products/:id" element={<ProductDetail />} />
+            <Route path="/components" element={<Products itemTypes={["component", "raw_material"]} pageTitle="Components" />} />
+            <Route path="/components/:id" element={<ProductDetail />} />
             <Route path="/quotes" element={<Quotes />} />
             <Route path="/quotes/:id" element={<QuoteDetail />} />
             <Route path="/orders" element={<Orders />} />
