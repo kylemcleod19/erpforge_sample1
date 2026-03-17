@@ -1,0 +1,46 @@
+# Production Docker Compose
+# Usage: docker compose -f docker-compose.prod.yml up --build
+# Required env vars (set in .env or shell):
+#   DATABASE_URL        e.g. postgresql://erp:erp@db:5432/erpdb
+#   BACKEND_CORS_ORIGINS  e.g. https://erpforge.kylemcleod.io
+#   BACKEND_HOST        e.g. backend (local) or backend.railway.internal (Railway)
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-erp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-erp}
+      POSTGRES_DB: ${POSTGRES_DB:-erpdb}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp} -d ${POSTGRES_DB:-erpdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Not exposed to host — nginx → backend → db internally
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://erp:erp@db:5432/erpdb}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost}
+    depends_on:
+      db:
+        condition: service_healthy
+    # No port exposure — only nginx talks to backend
+
+  nginx:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    ports:
+      - "80:80"
+    environment:
+      BACKEND_HOST: ${BACKEND_HOST:-backend}
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
