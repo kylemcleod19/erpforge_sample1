@@ -3,7 +3,9 @@
     "allow": [
       "Bash(make reset:*)",
       "Bash(docker compose:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebFetch(domain:railpack.com)",
+      "WebFetch(domain:docs.railway.com)"
     ]
   }
 }
