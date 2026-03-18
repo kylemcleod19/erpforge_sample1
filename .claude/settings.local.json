@@ -5,7 +5,9 @@
       "Bash(docker compose:*)",
       "Bash(curl:*)",
       "WebFetch(domain:railpack.com)",
-      "WebFetch(domain:docs.railway.com)"
+      "WebFetch(domain:docs.railway.com)",
+      "Bash(find /c/src/erpforge_sample1 -type f -name railway.toml -o -name *.railway* -o -name railway*)",
+      "Bash(find /c/src/erpforge_sample1 -type f \\\\\\(-name *railway* -o -name *deploy* \\\\\\) -o -path */docs/*)"
     ]
   }
 }
