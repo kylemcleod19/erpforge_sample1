@@ -104,7 +104,7 @@ async def bom_import_detect_columns(file: UploadFile = File(...)):
     return detect_columns(content)
 
 
-@router.post("/bom/import/preview", response_model=BOMImportPreviewResponse, dependencies=[Depends(verify_turnstile)])
+@router.post("/bom/import/preview", response_model=BOMImportPreviewResponse)
 async def bom_import_preview(
     file: UploadFile = File(...),
     column_mappings: str | None = Form(None),

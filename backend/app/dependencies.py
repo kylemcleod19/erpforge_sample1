@@ -10,10 +10,12 @@ TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverif
 _SKIP_KEYS = {"", "1x0000000000000000000000000000000AA", "2x0000000000000000000000000000000AA"}
 
 
-def verify_turnstile(cf_turnstile_response: str = Header(..., alias="CF-Turnstile-Response")) -> None:
+def verify_turnstile(cf_turnstile_response: str | None = Header(None, alias="CF-Turnstile-Response")) -> None:
     secret = settings.cloudflare_turnstile_secret_key
     if secret in _SKIP_KEYS:
         return  # dev mode / test key bypass
+    if not cf_turnstile_response:
+        raise HTTPException(status_code=403, detail="Turnstile token required")
 
     try:
         with httpx.Client(timeout=5.0) as client:
