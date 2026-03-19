@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_url: str = "postgresql://erp:erp@db:5432/erpdb"
     backend_cors_origins: str = "http://localhost:3000"
+    cloudflare_turnstile_secret_key: str = ""
 
     def __init__(self, **data):
         super().__init__(**data)

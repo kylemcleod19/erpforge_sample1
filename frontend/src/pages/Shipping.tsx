@@ -3,8 +3,12 @@ import {
   Button, DatePicker, Drawer, Form, Input, InputNumber, Space,
   Table, Typography, message
 } from "antd";
-import React, { useEffect, useState } from "react";
+import { TurnstileInstance } from "@marsidev/react-turnstile";
+import React, { useEffect, useRef, useState } from "react";
 import { Shipment, shippingApi } from "../api/shipping";
+import TurnstileWidget from "../components/TurnstileWidget";
+
+const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "";
 
 const { Title } = Typography;
 
@@ -13,6 +17,8 @@ export default function Shipping() {
   const [loading, setLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form] = Form.useForm();
+  const [turnstileToken, setTurnstileToken] = useState<string | undefined>();
+  const turnstileRef = useRef<TurnstileInstance>(null);
 
   const load = async () => {
     setLoading(true);
@@ -29,11 +35,15 @@ export default function Shipping() {
       shipped_at: values.shipped_at ? values.shipped_at.toISOString() : undefined,
     };
     try {
-      await shippingApi.create(payload);
+      await shippingApi.create(payload, turnstileToken);
       message.success("Shipment created and invoice generated");
       setDrawerOpen(false);
       load();
-    } catch (e: any) { message.error(e.message); }
+    } catch (e: any) {
+      message.error(e.message);
+      turnstileRef.current?.reset();
+      setTurnstileToken(undefined);
+    }
   };
 
   const columns = [
@@ -57,17 +67,22 @@ export default function Shipping() {
       <Drawer
         title="Create Shipment"
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={() => { setDrawerOpen(false); turnstileRef.current?.reset(); setTurnstileToken(undefined); }}
         footer={
           <Space style={{ float: "right" }}>
-            <Button onClick={() => setDrawerOpen(false)}>Cancel</Button>
-            <Button type="primary" onClick={onSave}>Create (+ Generate Invoice)</Button>
+            <Button onClick={() => { setDrawerOpen(false); turnstileRef.current?.reset(); setTurnstileToken(undefined); }}>Cancel</Button>
+            <Button type="primary" disabled={!!SITE_KEY && !turnstileToken} onClick={onSave}>Create (+ Generate Invoice)</Button>
           </Space>
         }
       >
         <Typography.Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
           Creating a shipment will automatically generate a draft invoice.
         </Typography.Text>
+        <TurnstileWidget
+          ref={turnstileRef}
+          onSuccess={(token) => setTurnstileToken(token)}
+          onExpire={() => setTurnstileToken(undefined)}
+        />
         <Form form={form} layout="vertical">
           <Form.Item name="order_id" label="Order ID" rules={[{ required: true }]}>
             <InputNumber style={{ width: "100%" }} min={1} />

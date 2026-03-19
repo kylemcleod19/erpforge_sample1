@@ -42,5 +42,8 @@ export const quotesApi = {
 
   transition: (id: number, status: string) =>
     client.post<Quote>(`/quotes/${id}/status`, { status }).then((r) => r.data),
-  convert: (id: number) => client.post(`/quotes/${id}/convert`).then((r) => r.data),
+  convert: (id: number, turnstileToken?: string) =>
+    client
+      .post(`/quotes/${id}/convert`, undefined, turnstileToken ? { headers: { "CF-Turnstile-Response": turnstileToken } } : {})
+      .then((r) => r.data),
 };

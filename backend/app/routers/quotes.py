@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import verify_turnstile
 from app.models.product import Product
 from app.models.quote import Quote, QuoteLineItem
 from app.schemas.order import OrderOut
@@ -137,7 +138,7 @@ def transition_status(quote_id: int, payload: QuoteStatusTransition, db: Session
     return quote
 
 
-@router.post("/{quote_id}/convert", response_model=OrderOut)
+@router.post("/{quote_id}/convert", response_model=OrderOut, dependencies=[Depends(verify_turnstile)])
 def convert_quote(quote_id: int, db: Session = Depends(get_db)):
     try:
         order = convert_quote_to_order(quote_id, db)

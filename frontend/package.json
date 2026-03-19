@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@marsidev/react-turnstile": "^1.0.0",
     "antd": "^5.16.4",
     "axios": "^1.6.8",
     "dayjs": "^1.11.10",

@@ -3,10 +3,14 @@ import {
   Button, Card, Descriptions, Form, InputNumber, Popconfirm,
   Select, Space, Table, Tag, Typography, message
 } from "antd";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Product, productsApi } from "../api/products";
 import { Quote, QuoteLineItem, quotesApi } from "../api/quotes";
+import TurnstileWidget from "../components/TurnstileWidget";
+import type { TurnstileInstance } from "@marsidev/react-turnstile";
+
+const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "";
 
 const { Title } = Typography;
 
@@ -37,6 +41,8 @@ export default function QuoteDetail() {
   const [products, setProducts] = useState<Product[]>([]);
   const [form] = Form.useForm();
   const [converting, setConverting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | undefined>();
+  const turnstileRef = useRef<TurnstileInstance>(null);
 
   const load = async () => {
     const [q, ps] = await Promise.all([quotesApi.get(qid), productsApi.list()]);
@@ -54,11 +60,16 @@ export default function QuoteDetail() {
   const convert = async () => {
     setConverting(true);
     try {
-      const order = await quotesApi.convert(qid) as any;
+      const order = await quotesApi.convert(qid, turnstileToken) as any;
       message.success(`Order #${order.id} created`);
       navigate(`/orders/${order.id}`);
-    } catch (e: any) { message.error(e.message); }
-    finally { setConverting(false); }
+    } catch (e: any) {
+      message.error(e.message);
+      turnstileRef.current?.reset();
+      setTurnstileToken(undefined);
+    } finally {
+      setConverting(false);
+    }
   };
 
   const addLine = async () => {
@@ -91,7 +102,21 @@ export default function QuoteDetail() {
             <Button key={t.to} danger={t.danger} type={t.danger ? "default" : "primary"} onClick={() => transition(t.to)}>{t.label}</Button>
           ))}
           {quote.status === "won" && (
-            <Button type="primary" loading={converting} onClick={convert}>Convert to Order</Button>
+            <>
+              <TurnstileWidget
+                ref={turnstileRef}
+                onSuccess={(token) => setTurnstileToken(token)}
+                onExpire={() => setTurnstileToken(undefined)}
+              />
+              <Button
+                type="primary"
+                loading={converting}
+                disabled={!!SITE_KEY && !turnstileToken}
+                onClick={convert}
+              >
+                Convert to Order
+              </Button>
+            </>
           )}
         </Space>
       </div>

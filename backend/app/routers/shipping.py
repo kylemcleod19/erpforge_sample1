@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import verify_turnstile
 from app.models.order import Order
 from app.models.shipping import Shipment
 from app.schemas.shipping import ShipmentCreate, ShipmentOut
@@ -15,7 +16,7 @@ def list_shipments(db: Session = Depends(get_db)):
     return db.query(Shipment).order_by(Shipment.id.desc()).all()
 
 
-@router.post("", response_model=ShipmentOut, status_code=201)
+@router.post("", response_model=ShipmentOut, status_code=201, dependencies=[Depends(verify_turnstile)])
 def create_shipment(payload: ShipmentCreate, db: Session = Depends(get_db)):
     order = db.get(Order, payload.order_id)
     if not order:

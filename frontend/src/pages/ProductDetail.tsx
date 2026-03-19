@@ -3,8 +3,12 @@ import {
   Alert, Badge, Button, Card, Checkbox, Descriptions, Dropdown, Form, Input, InputNumber, Modal,
   Popconfirm, Select, Space, Table, Tag, Tree, Typography, message
 } from "antd";
-import React, { useEffect, useState } from "react";
+import { TurnstileInstance } from "@marsidev/react-turnstile";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import TurnstileWidget from "../components/TurnstileWidget";
+
+const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "";
 import {
   BOMConflict, BOMImportPreviewResponse, BOMImportRow,
   BOMItem, BOMItemAlternate, BOMRevision, ColumnDetectResponse, ColumnMapping,
@@ -81,6 +85,8 @@ export default function ProductDetail() {
   const [csvPreview, setCsvPreview] = useState<BOMImportPreviewResponse | null>(null);
   const [selectedConflicts, setSelectedConflicts] = useState<Set<string>>(new Set());
   const csvInputRef = React.useRef<HTMLInputElement>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | undefined>();
+  const turnstileRef = useRef<TurnstileInstance>(null);
 
   const load = async () => {
     const [p, all, cost, revs, comp] = await Promise.all([
@@ -240,6 +246,8 @@ export default function ProductDetail() {
     setCsvMappings({});
     setCsvPreview(null);
     setSelectedConflicts(new Set());
+    turnstileRef.current?.reset();
+    setTurnstileToken(undefined);
   };
 
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,7 +283,7 @@ export default function ProductDetail() {
       for (const [csvCol, field] of Object.entries(csvMappings)) {
         if (field) overrides[csvCol] = field;
       }
-      const preview = await productsApi.bomImportPreview(csvFile, overrides);
+      const preview = await productsApi.bomImportPreview(csvFile, overrides, turnstileToken);
       if (preview.errors.length > 0 && preview.new_rows.length === 0 && preview.conflicts.length === 0) {
         preview.errors.forEach((err) => message.error(err, 6));
         return;
@@ -314,6 +322,7 @@ export default function ProductDetail() {
           child_product_id: c.child_product_id,
         }))],
         upsertPairs,
+        turnstileToken,
       );
       message.success(`Import done: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
       setCsvModalOpen(false);
@@ -321,6 +330,8 @@ export default function ProductDetail() {
       load();
     } catch (e: any) {
       message.error("Apply failed: " + e.message);
+      turnstileRef.current?.reset();
+      setTurnstileToken(undefined);
     }
   };
 
@@ -677,9 +688,9 @@ export default function ProductDetail() {
             </Space>
           ) : (
             <Space>
-              <Button onClick={() => setCsvStep(1)}>Back to Mapping</Button>
+              <Button onClick={() => { setCsvStep(1); turnstileRef.current?.reset(); setTurnstileToken(undefined); }}>Back to Mapping</Button>
               <Button onClick={() => { setCsvModalOpen(false); resetCsvState(); }}>Cancel</Button>
-              <Button type="primary" onClick={handleCsvApply}>Apply Import</Button>
+              <Button type="primary" disabled={!!SITE_KEY && !turnstileToken} onClick={handleCsvApply}>Apply Import</Button>
             </Space>
           )
         }
@@ -757,6 +768,11 @@ export default function ProductDetail() {
 
         {csvStep === 2 && csvPreview && (
           <>
+            <TurnstileWidget
+              ref={turnstileRef}
+              onSuccess={(token) => setTurnstileToken(token)}
+              onExpire={() => setTurnstileToken(undefined)}
+            />
             {/* Mapping summary */}
             {csvPreview.column_mappings && csvPreview.column_mappings.length > 0 && (
               <div style={{ marginBottom: 12 }}>

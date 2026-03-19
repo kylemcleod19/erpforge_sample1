@@ -7,6 +7,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import verify_turnstile
 from app.models.product import (
     BOMItemAlternate,
     BOMRevision,
@@ -103,7 +104,7 @@ async def bom_import_detect_columns(file: UploadFile = File(...)):
     return detect_columns(content)
 
 
-@router.post("/bom/import/preview", response_model=BOMImportPreviewResponse)
+@router.post("/bom/import/preview", response_model=BOMImportPreviewResponse, dependencies=[Depends(verify_turnstile)])
 async def bom_import_preview(
     file: UploadFile = File(...),
     column_mappings: str | None = Form(None),
@@ -119,7 +120,7 @@ async def bom_import_preview(
     return parse_bom_csv(content, db, column_overrides=overrides)
 
 
-@router.post("/bom/import/apply", response_model=BOMImportApplyResponse)
+@router.post("/bom/import/apply", response_model=BOMImportApplyResponse, dependencies=[Depends(verify_turnstile)])
 def bom_import_apply(
     payload: BOMImportApplyRequest,
     db: Session = Depends(get_db),

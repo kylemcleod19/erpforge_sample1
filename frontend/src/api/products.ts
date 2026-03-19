@@ -239,20 +239,28 @@ export const productsApi = {
       .then((r) => r.data);
   },
 
-  bomImportPreview: (file: File, columnMappings?: Record<string, string>) => {
+  bomImportPreview: (file: File, columnMappings?: Record<string, string>, turnstileToken?: string) => {
     const fd = new FormData();
     fd.append("file", file);
     if (columnMappings) {
       fd.append("column_mappings", JSON.stringify(columnMappings));
     }
     return client
-      .post<BOMImportPreviewResponse>("/products/bom/import/preview", fd)
+      .post<BOMImportPreviewResponse>(
+        "/products/bom/import/preview",
+        fd,
+        turnstileToken ? { headers: { "CF-Turnstile-Response": turnstileToken } } : {},
+      )
       .then((r) => r.data);
   },
 
-  bomImportApply: (rows: BOMImportRow[], upsertPairs: [string, string][]) =>
+  bomImportApply: (rows: BOMImportRow[], upsertPairs: [string, string][], turnstileToken?: string) =>
     client
-      .post<BOMImportApplyResponse>("/products/bom/import/apply", { rows, upsert_pairs: upsertPairs })
+      .post<BOMImportApplyResponse>(
+        "/products/bom/import/apply",
+        { rows, upsert_pairs: upsertPairs },
+        turnstileToken ? { headers: { "CF-Turnstile-Response": turnstileToken } } : {},
+      )
       .then((r) => r.data),
 
   bomImportTemplate: (type: "pcba" | "mechanical") => {
