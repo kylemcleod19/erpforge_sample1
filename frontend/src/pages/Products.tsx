@@ -6,6 +6,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Product, productsApi } from "../api/products";
+import EmptyState from "../components/EmptyState";
 
 const { Title } = Typography;
 
@@ -104,7 +105,25 @@ export default function Products({ itemTypes, pageTitle = "Products" }: Products
         <Title level={3} style={{ margin: 0 }}>{pageTitle}</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>New {pageTitle.replace(/s$/, "")}</Button>
       </div>
-      <Table rowKey="id" dataSource={products} columns={columns} loading={loading} />
+      {!loading && products.length === 0 ? (
+        <EmptyState
+          title={`No ${pageTitle.toLowerCase()} yet`}
+          description={
+            pageTitle === "Components"
+              ? "Components are the raw materials and parts used in your bills of materials."
+              : "Products represent the finished goods and assemblies your company manufactures."
+          }
+          workflowHint={
+            pageTitle === "Components"
+              ? "Components are referenced by BOMs. Add components, then build your bill of materials."
+              : "Products are the foundation — create them before BOMs, quotes, or work orders."
+          }
+          actionLabel={`Create ${pageTitle.replace(/s$/, "")}`}
+          onAction={openCreate}
+        />
+      ) : (
+        <Table rowKey="id" dataSource={products} columns={columns} loading={loading} />
+      )}
       <Drawer
         title={editing ? `Edit ${pageTitle.replace(/s$/, "")}` : `New ${pageTitle.replace(/s$/, "")}`}
         open={drawerOpen}

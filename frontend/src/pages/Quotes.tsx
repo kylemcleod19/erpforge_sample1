@@ -3,6 +3,7 @@ import { Button, Drawer, Form, Input, Space, Table, Tag, Typography, message } f
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Quote, quotesApi } from "../api/quotes";
+import EmptyState from "../components/EmptyState";
 
 const { Title } = Typography;
 
@@ -62,7 +63,17 @@ export default function Quotes() {
         <Title level={3} style={{ margin: 0 }}>Quotes</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setDrawerOpen(true); }}>New Quote</Button>
       </div>
-      <Table rowKey="id" dataSource={quotes} columns={columns} loading={loading} />
+      {!loading && quotes.length === 0 ? (
+        <EmptyState
+          title="No quotes yet"
+          description="Quotes are proposals sent to customers with pricing and lead times."
+          workflowHint="Create a quote, add line items, then convert won quotes into orders."
+          actionLabel="Create Quote"
+          onAction={() => { form.resetFields(); setDrawerOpen(true); }}
+        />
+      ) : (
+        <Table rowKey="id" dataSource={quotes} columns={columns} loading={loading} />
+      )}
       <Drawer
         title="New Quote"
         open={drawerOpen}

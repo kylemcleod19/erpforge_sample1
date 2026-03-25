@@ -2,6 +2,7 @@ import { Button, Select, Space, Table, Tag, Typography } from "antd";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Order, ordersApi } from "../api/orders";
+import EmptyState from "../components/EmptyState";
 
 const { Title } = Typography;
 
@@ -49,7 +50,17 @@ export default function Orders() {
           options={["pending", "in_progress", "shipped", "invoiced", "cancelled"].map((s) => ({ value: s, label: s }))}
         />
       </div>
-      <Table rowKey="id" dataSource={orders} columns={columns} loading={loading} />
+      {!loading && orders.length === 0 ? (
+        <EmptyState
+          title="No orders yet"
+          description="Orders are created when a quote is won and converted."
+          workflowHint="Win a quote first, then convert it to generate orders, reservations, and work orders."
+          actionLabel="Go to Quotes"
+          onAction={() => navigate("/quotes")}
+        />
+      ) : (
+        <Table rowKey="id" dataSource={orders} columns={columns} loading={loading} />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Button, Space, Table, Tag, Typography, message } from "antd";
 import React, { useEffect, useState } from "react";
 import { Invoice, invoicesApi } from "../api/invoices";
+import EmptyState from "../components/EmptyState";
 
 const { Title } = Typography;
 
@@ -72,13 +73,21 @@ export default function Invoices() {
   return (
     <div>
       <Title level={3}>Invoices</Title>
-      <Table
-        rowKey="id"
-        dataSource={invoices}
-        columns={columns}
-        loading={loading}
-        expandable={{ expandedRowRender, rowExpandable: (r) => r.line_items.length > 0 }}
-      />
+      {!loading && invoices.length === 0 ? (
+        <EmptyState
+          title="No invoices yet"
+          description="Invoices are auto-generated when a shipment is created."
+          workflowHint="Ship an order to see its invoice appear here."
+        />
+      ) : (
+        <Table
+          rowKey="id"
+          dataSource={invoices}
+          columns={columns}
+          loading={loading}
+          expandable={{ expandedRowRender, rowExpandable: (r) => r.line_items.length > 0 }}
+        />
+      )}
     </div>
   );
 }

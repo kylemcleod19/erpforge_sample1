@@ -1,9 +1,14 @@
 import logging
 
 import httpx
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
+from jose import JWTError
+from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.database import get_db
+from app.models.user import User
+from app.services.auth_service import decode_access_token
 
 logger = logging.getLogger(__name__)
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
@@ -34,3 +39,27 @@ def verify_turnstile(cf_turnstile_response: str | None = Header(None, alias="CF-
     if not result.get("success"):
         logger.warning("Turnstile failed: %s", result.get("error-codes"))
         raise HTTPException(status_code=403, detail="Turnstile verification failed")
+
+
+def get_current_user(
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+) -> User:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+
+    token = authorization.removeprefix("Bearer ")
+    try:
+        payload = decode_access_token(token)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+
+    return user

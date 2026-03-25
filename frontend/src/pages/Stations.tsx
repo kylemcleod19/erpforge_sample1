@@ -6,6 +6,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { manufacturingApi, WorkStation, ProductRouting } from "../api/manufacturing";
 import { productsApi, Product } from "../api/products";
+import EmptyState from "../components/EmptyState";
 
 const { Title } = Typography;
 
@@ -99,7 +100,17 @@ export default function Stations() {
         style={{ marginBottom: 24 }}
         extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>New Station</Button>}
       >
-        <Table rowKey="id" dataSource={stations} columns={stationColumns} size="small" />
+        {stations.length === 0 ? (
+          <EmptyState
+            title="No stations yet"
+            description="Stations define the manufacturing steps in your production process."
+            workflowHint="Define stations first, then create routings on products to enable work order tracking."
+            actionLabel="Create Station"
+            onAction={openCreate}
+          />
+        ) : (
+          <Table rowKey="id" dataSource={stations} columns={stationColumns} size="small" />
+        )}
       </Card>
 
       <Card title="Product Routing">

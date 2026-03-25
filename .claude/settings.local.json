@@ -7,7 +7,10 @@
       "WebFetch(domain:railpack.com)",
       "WebFetch(domain:docs.railway.com)",
       "Bash(find /c/src/erpforge_sample1 -type f -name railway.toml -o -name *.railway* -o -name railway*)",
-      "Bash(find /c/src/erpforge_sample1 -type f \\\\\\(-name *railway* -o -name *deploy* \\\\\\) -o -path */docs/*)"
+      "Bash(find /c/src/erpforge_sample1 -type f \\\\\\(-name *railway* -o -name *deploy* \\\\\\) -o -path */docs/*)",
+      "Bash(find C:srcerpforge_sample1 -type f -name *[Cc][Ll][Aa][Uu][Dd][Ee]*)",
+      "Bash(wc -l C:/src/erpforge_sample1/frontend/src/pages/*.tsx)",
+      "WebSearch"
     ]
   }
 }

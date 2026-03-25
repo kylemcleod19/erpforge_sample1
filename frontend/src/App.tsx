@@ -1,21 +1,25 @@
 import {
   AppstoreOutlined,
   AuditOutlined,
-  BarChartOutlined,
   BlockOutlined,
   CarOutlined,
   ContainerOutlined,
   FileTextOutlined,
+  LogoutOutlined,
   PartitionOutlined,
   ShoppingCartOutlined,
   ShoppingOutlined,
   ToolOutlined,
 } from "@ant-design/icons";
-import { Layout, Menu, Typography } from "antd";
-import React, { useState } from "react";
+import { Button, Layout, Menu, Spin, Tag, Typography } from "antd";
+import React, { useCallback, useState } from "react";
 import { Link, BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
+import CopilotWidget from "./components/CopilotWidget";
+import OnboardingChecklist from "./components/OnboardingChecklist";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Inventory from "./pages/Inventory";
 import Invoices from "./pages/Invoices";
+import Login from "./pages/Login";
 import OrderDetail from "./pages/OrderDetail";
 import Orders from "./pages/Orders";
 import ProductDetail from "./pages/ProductDetail";
@@ -27,7 +31,7 @@ import Shipping from "./pages/Shipping";
 import Stations from "./pages/Stations";
 import WorkOrders from "./pages/WorkOrders";
 
-const { Header, Sider, Content } = Layout;
+const { Sider, Content } = Layout;
 
 const NAV_ITEMS = [
   { key: "/products", icon: <AppstoreOutlined />, label: <Link to="/products">Products</Link> },
@@ -42,9 +46,25 @@ const NAV_ITEMS = [
   { key: "/invoices", icon: <AuditOutlined />, label: <Link to="/invoices">Invoices</Link> },
 ];
 
+const ROLE_COLORS: Record<string, string> = {
+  admin: "red",
+  engineer: "blue",
+  sales: "green",
+};
+
 function AppLayout() {
   const location = useLocation();
   const selectedKey = "/" + location.pathname.split("/")[1];
+  const { user, logout } = useAuth();
+  const [copilotPrompt, setCopilotPrompt] = useState<string | null>(null);
+
+  const handleMilestoneClick = useCallback((prompt: string) => {
+    setCopilotPrompt(prompt);
+  }, []);
+
+  const handlePromptConsumed = useCallback(() => {
+    setCopilotPrompt(null);
+  }, []);
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
@@ -60,6 +80,26 @@ function AppLayout() {
           selectedKeys={[selectedKey]}
           items={NAV_ITEMS}
         />
+        <OnboardingChecklist onMilestoneClick={handleMilestoneClick} />
+        {user && (
+          <div style={{ position: "absolute", bottom: 0, width: "100%", padding: "16px" }}>
+            <div style={{ color: "#fff", marginBottom: 8, fontSize: 13 }}>
+              {user.display_name}
+              <Tag color={ROLE_COLORS[user.role] || "default"} style={{ marginLeft: 8 }}>
+                {user.role}
+              </Tag>
+            </div>
+            <Button
+              icon={<LogoutOutlined />}
+              size="small"
+              type="text"
+              style={{ color: "#aaa" }}
+              onClick={logout}
+            >
+              Sign out
+            </Button>
+          </div>
+        )}
       </Sider>
       <Layout style={{ marginLeft: 220 }}>
         <Content style={{ padding: "24px", minHeight: "calc(100vh - 64px)" }}>
@@ -82,14 +122,34 @@ function AppLayout() {
           </Routes>
         </Content>
       </Layout>
+      <CopilotWidget
+        initialPrompt={copilotPrompt}
+        onPromptConsumed={handlePromptConsumed}
+      />
     </Layout>
   );
+}
+
+function AuthGate() {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  return isAuthenticated ? <AppLayout /> : <Login />;
 }
 
 export default function App() {
   return (
     <Router>
-      <AppLayout />
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
     </Router>
   );
 }

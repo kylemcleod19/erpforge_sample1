@@ -7,6 +7,7 @@ import { TurnstileInstance } from "@marsidev/react-turnstile";
 import React, { useEffect, useRef, useState } from "react";
 import { Shipment, shippingApi } from "../api/shipping";
 import TurnstileWidget from "../components/TurnstileWidget";
+import EmptyState from "../components/EmptyState";
 
 const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "";
 
@@ -63,7 +64,17 @@ export default function Shipping() {
           New Shipment
         </Button>
       </div>
-      <Table rowKey="id" dataSource={shipments} columns={columns} loading={loading} />
+      {!loading && shipments.length === 0 ? (
+        <EmptyState
+          title="No shipments yet"
+          description="Shipments record when orders are sent to customers."
+          workflowHint="Create a shipment for an order to auto-generate an invoice."
+          actionLabel="Create Shipment"
+          onAction={() => { form.resetFields(); setDrawerOpen(true); }}
+        />
+      ) : (
+        <Table rowKey="id" dataSource={shipments} columns={columns} loading={loading} />
+      )}
       <Drawer
         title="Create Shipment"
         open={drawerOpen}

@@ -1,6 +1,7 @@
 import { Button, Select, Space, Table, Tag, Typography, message } from "antd";
 import React, { useEffect, useState } from "react";
 import { manufacturingApi, WorkOrder, WorkOrderLog } from "../api/manufacturing";
+import EmptyState from "../components/EmptyState";
 
 const { Title } = Typography;
 
@@ -90,13 +91,21 @@ export default function WorkOrders() {
           options={["queued", "in_progress", "completed"].map((s) => ({ value: s, label: s }))}
         />
       </div>
-      <Table
-        rowKey="id"
-        dataSource={workOrders}
-        columns={columns}
-        loading={loading}
-        expandable={{ expandedRowRender, rowExpandable: (r) => r.logs.length > 0 }}
-      />
+      {!loading && workOrders.length === 0 ? (
+        <EmptyState
+          title="No work orders yet"
+          description="Work orders track manufacturing progress through your routing stations."
+          workflowHint="Work orders are auto-created when a quote converts to an order for products with routings."
+        />
+      ) : (
+        <Table
+          rowKey="id"
+          dataSource={workOrders}
+          columns={columns}
+          loading={loading}
+          expandable={{ expandedRowRender, rowExpandable: (r) => r.logs.length > 0 }}
+        />
+      )}
     </div>
   );
 }

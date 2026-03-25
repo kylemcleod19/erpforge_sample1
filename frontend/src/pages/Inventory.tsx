@@ -6,6 +6,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { InventoryBalance, InventoryReservation, inventoryApi } from "../api/inventory";
 import { Product, productsApi } from "../api/products";
+import EmptyState from "../components/EmptyState";
 
 const { Title } = Typography;
 
@@ -80,7 +81,17 @@ export default function Inventory() {
         style={{ marginBottom: 24 }}
         extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Set Balance</Button>}
       >
-        <Table rowKey="id" dataSource={balances} columns={balanceColumns} size="small" />
+        {balances.length === 0 ? (
+          <EmptyState
+            title="No inventory yet"
+            description="Inventory tracks on-hand quantities for all products and components."
+            workflowHint="Inventory balances are checked during order conversion for reservation and purchase requests."
+            actionLabel="Set Balance"
+            onAction={openCreate}
+          />
+        ) : (
+          <Table rowKey="id" dataSource={balances} columns={balanceColumns} size="small" />
+        )}
       </Card>
 
       <Card title="Reservations">

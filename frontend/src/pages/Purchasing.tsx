@@ -1,6 +1,7 @@
 import { Button, Select, Space, Table, Tag, Typography, message } from "antd";
 import React, { useEffect, useState } from "react";
 import { PurchaseRequest, purchasingApi } from "../api/purchasing";
+import EmptyState from "../components/EmptyState";
 
 const { Title } = Typography;
 
@@ -65,7 +66,15 @@ export default function Purchasing() {
           options={["pending", "ordered", "received"].map((s) => ({ value: s, label: s }))}
         />
       </div>
-      <Table rowKey="id" dataSource={requests} columns={columns} loading={loading} />
+      {!loading && requests.length === 0 ? (
+        <EmptyState
+          title="No purchase requests"
+          description="Purchase requests are auto-generated when inventory is short during order conversion."
+          workflowHint="Convert an order with insufficient inventory to see purchase requests appear."
+        />
+      ) : (
+        <Table rowKey="id" dataSource={requests} columns={columns} loading={loading} />
+      )}
     </div>
   );
 }
