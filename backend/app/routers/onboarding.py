@@ -6,7 +6,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.services.onboarding_service import get_or_create_progress, get_progress_response, refresh_milestones
 
-router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
+router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 
 @router.get("/progress")

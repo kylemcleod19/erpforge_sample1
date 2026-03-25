@@ -11,7 +11,7 @@ from app.services.auth_service import create_access_token, hash_password, verify
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 VALID_ROLES = {"admin", "engineer", "sales"}
 

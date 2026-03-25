@@ -13,7 +13,7 @@ from app.services.assistant_service import chat_stream
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/assistant", tags=["assistant"])
+router = APIRouter(prefix="/assistant", tags=["assistant"])
 
 
 @router.post("/chat")
