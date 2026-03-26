@@ -46,21 +46,12 @@ export function useCopilot() {
               break;
 
             case "tool_use":
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: nextId(),
-                  role: "tool_use",
-                  content: `Using ${chunk.tool}...`,
-                  toolName: chunk.tool,
-                  toolInput: chunk.input,
-                },
-              ]);
+              // Tool use is handled silently — not shown in chat
               break;
 
             case "tool_result": {
               const content = chunk.content || "";
-              // Check if this is a navigation result
+              // Only show navigation results to the user
               if (content.startsWith("NAVIGATE:")) {
                 const parts = content.slice(9).split("|");
                 setMessages((prev) => [
@@ -73,11 +64,6 @@ export function useCopilot() {
                     navigateReason: parts[1] || "",
                   },
                 ]);
-              } else {
-                setMessages((prev) => [
-                  ...prev,
-                  { id: nextId(), role: "tool_result", content },
-                ]);
               }
               // After tool result, Claude will continue streaming text in a new block.
               // Create a new assistant message placeholder for the continuation.
@@ -87,9 +73,6 @@ export function useCopilot() {
                 ...prev,
                 { id: newId, role: "assistant", content: "" },
               ]);
-              // Update the assistantMsgId reference for subsequent text chunks
-              // We can't reassign assistantMsgId directly, so we use a workaround:
-              // The streaming text callback will update the LAST assistant message
               break;
             }
 

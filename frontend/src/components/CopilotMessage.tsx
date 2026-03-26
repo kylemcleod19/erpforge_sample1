@@ -1,15 +1,13 @@
-import { LinkOutlined, LoadingOutlined, QuestionCircleOutlined, ToolOutlined, UserOutlined } from "@ant-design/icons";
-import { Button, Tag, Typography } from "antd";
+import { LinkOutlined, LoadingOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons";
+import { Button, Typography } from "antd";
 import React from "react";
 
 const { Text, Paragraph } = Typography;
 
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant" | "tool_use" | "tool_result" | "error";
+  role: "user" | "assistant" | "tool_result" | "error";
   content: string;
-  toolName?: string;
-  toolInput?: Record<string, unknown>;
   navigatePath?: string;
   navigateReason?: string;
 }
@@ -22,24 +20,6 @@ interface CopilotMessageProps {
 export default function CopilotMessage({ message, onNavigate }: CopilotMessageProps) {
   const isUser = message.role === "user";
   const isError = message.role === "error";
-  const isTool = message.role === "tool_use" || message.role === "tool_result";
-
-  if (isTool) {
-    return (
-      <div style={{ padding: "4px 12px", fontSize: 12 }}>
-        {message.role === "tool_use" ? (
-          <Text type="secondary">
-            <ToolOutlined style={{ marginRight: 4 }} />
-            Using <Tag style={{ fontSize: 11 }}>{message.toolName}</Tag>
-          </Text>
-        ) : (
-          <Text type="success" style={{ fontSize: 12 }}>
-            {message.content}
-          </Text>
-        )}
-      </div>
-    );
-  }
 
   if (message.navigatePath) {
     return (
