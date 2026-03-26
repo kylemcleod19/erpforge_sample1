@@ -291,50 +291,58 @@ This remains consistent with the original architecture’s runtime configurabili
 
 ---
 
-## 10. Containerization and Orchestration
+## 10. Containerization and Deployment
 
 All services must run in Docker containers. Each service should include:
 
-- a Dockerfile
+- a Dockerfile (Railway-compatible)
 - health checks
-- environment variable handling
+- environment variable handling (must respect Railway's `PORT` injection)
 - startup command definitions
 - log output to stdout/stderr
 
-Local orchestration should use Kubernetes from the beginning, preferably via **Kind** for local repeatability. Minikube is also acceptable.
+### Production: Railway
 
-Why Kubernetes this early:
+Production deploys to **Railway** with separate services for backend, frontend, and a Railway-managed PostgreSQL database.
 
-- it matches the target architecture
-- it forces explicit service boundaries
-- it tests deployment assumptions early
-- it makes the sample ERP a better proving ground for the future builder
+Railway deployment rules:
 
-The cloud target remains AWS EKS, with the possibility of GKE or AKS later. fileciteturn1file1L179-L225
+- Railway injects a `PORT` env var — services **must** bind to it (use `${PORT:-8000}` in Dockerfile CMD)
+- Railway health-checks on the assigned `PORT` — binding to a different port causes container restarts
+- Each service has a `railway.toml` with `builder = "DOCKERFILE"`
+- Backend runs `alembic upgrade head` on startup before starting uvicorn
+- Frontend uses a multi-stage Dockerfile (`Dockerfile.prod`): Vite build → nginx static serving
+- Frontend nginx proxies `/api/*` to the backend using `BACKEND_HOST` and `BACKEND_PORT` env vars (substituted via `envsubst` at container start)
+- Do not use `--workers` with uvicorn on Railway — resource limits are tight and multi-worker processes cause silent OOM kills
+- Railway auto-injects `DATABASE_URL` with `postgres://` scheme; backend `config.py` rewrites to `postgresql://` for SQLAlchemy 2.x
+
+Required Railway environment variables:
+
+- **Backend:** `DATABASE_URL` (auto), `JWT_SECRET`, `ANTHROPIC_API_KEY`, `BACKEND_CORS_ORIGINS`
+- **Frontend:** `BACKEND_HOST`, `BACKEND_PORT` (must match backend's Railway-assigned `PORT`, typically `8080`)
+
+### Local testing: Docker Compose
+
+Local development uses Docker Compose for testing only. The compose file runs backend, frontend, and PostgreSQL containers with dev-friendly defaults (hot reload, port 8000/3000). fileciteturn1file1L179-L225
 
 ---
 
 ## 11. CI/CD and Development Flow
 
-A dedicated enterprise CI/CD platform is not required for the initial version.
-
-Initial delivery workflow:
+Delivery workflow:
 
 - Claude generates or edits code through manual prompts
 - developer reviews and patches the output
-- local tests run via scripts or Make targets
-- Docker images are built locally
-- images are deployed into local Kubernetes
-- smoke tests verify service health and workflows
+- local tests run via Docker Compose and Make targets (`make up`, `make down`, `make reset`, `make migrate`)
+- push to main branch triggers Railway auto-deploy
+- verify on production URL after deploy
 
-Suggested automation:
+Suggested Make targets:
 
-- `make test`
-- `make lint`
-- `make build`
-- `make up`
-- `make deploy-local`
-- `make seed-data`
+- `make up` — start local Docker Compose
+- `make down` — stop local services
+- `make reset` — tear down volumes and rebuild
+- `make migrate` — run alembic migrations
 
 Future CI/CD can move to self-hosted Jenkins or GitLab CI/CD, preserving the original architecture direction. fileciteturn1file2L55-L70
 

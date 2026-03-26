@@ -12,14 +12,13 @@ Claude is acting as a **manual code-generation and implementation assistant** in
 
 Help build a modular manufacturing ERP reference application using:
 
-- microservices
 - REST APIs
 - event-driven communication
-- Docker
-- Kubernetes
+- Docker (containerization)
+- Railway (production deployment)
+- Docker Compose (local testing only)
 - PostgreSQL
-- RabbitMQ
-- React frontend
+- React frontend (nginx reverse proxy in production)
 - observability and production-style conventions
 
 Claude should optimize for:
@@ -111,16 +110,37 @@ Default frontend to:
 
 Use practical, maintainable frontend patterns.
 
-### 6. Container-first mindset
+### 6. Railway-first deployment
 
-Services should be designed to run in Docker and deploy into Kubernetes.
+Production deploys to **Railway**. Local development uses Docker Compose for testing only. All Dockerfiles, env var handling, and networking must work correctly on Railway first — local compatibility is secondary.
 
 When generating services, include:
 
-- Dockerfile
+- Dockerfile (Railway-compatible)
 - env var expectations
 - health endpoint
 - startup instructions
+
+#### Railway deployment rules
+
+Railway injects a `PORT` environment variable that each service **must** bind to. Never hardcode port numbers in production Dockerfiles.
+
+**Backend Dockerfile CMD** must use `${PORT:-8000}` so it respects Railway's port assignment while defaulting to 8000 for local Docker Compose.
+
+**Frontend** is an nginx reverse proxy (`frontend/Dockerfile.prod`). The nginx config (`frontend/nginx.conf`) uses `BACKEND_HOST` and `BACKEND_PORT` environment variables to proxy `/api/*` to the backend. Both are substituted at container start via `envsubst` in the Dockerfile CMD. When adding or modifying proxy config, use these variables — never hardcode backend connection details.
+
+**Required Railway environment variables:**
+
+- **Backend service:** `DATABASE_URL` (auto-injected by Railway), `JWT_SECRET`, `ANTHROPIC_API_KEY`, `BACKEND_CORS_ORIGINS`
+- **Frontend service:** `BACKEND_HOST` (backend internal hostname), `BACKEND_PORT` (must match backend's Railway-assigned `PORT`, typically `8080`)
+
+**Key constraints:**
+
+- Railway health-checks services on the `PORT` it assigns — if the service binds to a different port, the health check fails and Railway kills the container
+- Backend runs `alembic upgrade head` on startup with a 30-second timeout before starting uvicorn
+- Frontend nginx must have SSE support enabled (`proxy_buffering off`) for the AI copilot streaming endpoint
+- Railway auto-injects `DATABASE_URL` with `postgres://` scheme; the backend `config.py` rewrites it to `postgresql://` for SQLAlchemy 2.x compatibility
+- Do not add `--workers` to uvicorn in the Dockerfile — Railway's resource limits are tight and multi-worker processes can cause silent OOM kills
 
 ### 7. Production-style outputs
 
@@ -290,20 +310,21 @@ Do not generate obviously insecure shortcuts unless explicitly asked for a local
 
 ---
 
-## Kubernetes and Infra Guidance
+## Infrastructure and Deployment
 
-Default local orchestration to:
+**Production:** Railway (separate backend + frontend services, Railway-managed PostgreSQL)
 
-- Kind or Minikube
+**Local testing:** Docker Compose (`docker-compose.yml`) with backend, frontend, and PostgreSQL containers
 
 Default infra assumptions:
 
-- services are containerized
-- manifests live in `infra/k8s/`
-- local development may use port-forwarding or ingress
-- RabbitMQ and PostgreSQL may run in-cluster or through local containers
+- services are containerized with Dockerfiles
+- production deployment is Railway — no Kubernetes manifests needed
+- backend has `backend/railway.toml`, frontend has `frontend/railway.toml`
+- local development uses `make up` / `make down` / `make reset`
+- PostgreSQL runs as a Railway-managed database in production, as a Docker container locally
 
-When asked for infra files, generate realistic Kubernetes YAML, not pseudo-config.
+When modifying Dockerfiles or startup commands, always verify they work with Railway's `PORT` injection and health-check model. Test locally with Docker Compose before pushing.
 
 ---
 
@@ -332,10 +353,10 @@ If no better direction is given, default to this order:
 5. generate service scaffolds
 6. add persistence
 7. add business logic
-8. add containerization
-9. add Kubernetes manifests
-10. add frontend flows
-11. add observability and tests
+8. add containerization (Railway-compatible Dockerfiles)
+9. add frontend flows
+10. add observability and tests
+11. deploy to Railway
 
 ---
 
