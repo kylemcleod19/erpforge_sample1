@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { getMe, login as apiLogin, register as apiRegister, UserOut } from "../api/auth";
+import { demoLogin as apiDemoLogin, getMe, login as apiLogin, register as apiRegister, UserOut } from "../api/auth";
 
 const TOKEN_KEY = "erpforge_token";
 
@@ -8,6 +8,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName: string, role: string) => Promise<void>;
+  demoLogin: () => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -45,6 +46,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const demoLogin = useCallback(async () => {
+    const resp = await apiDemoLogin();
+    localStorage.setItem(TOKEN_KEY, resp.access_token);
+    setUser(resp.user);
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     setUser(null);
@@ -52,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout, isAuthenticated: !!user }}
+      value={{ user, loading, login, register, demoLogin, logout, isAuthenticated: !!user }}
     >
       {children}
     </AuthContext.Provider>

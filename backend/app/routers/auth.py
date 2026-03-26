@@ -7,6 +7,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.user import LoginRequest, TokenResponse, UserCreate, UserOut
+from app.seed import seed as run_seed
 from app.services.auth_service import create_access_token, hash_password, verify_password
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,28 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
+
+    token = create_access_token(user.id, user.role)
+    return TokenResponse(access_token=token, user=UserOut.model_validate(user))
+
+
+@router.post("/demo-login", response_model=TokenResponse)
+def demo_login(db: Session = Depends(get_db)):
+    """Log in as a demo admin user with pre-seeded sample data."""
+    DEMO_EMAIL = "demo@erpforge.dev"
+    user = db.query(User).filter(User.email == DEMO_EMAIL).first()
+    if not user:
+        user = User(
+            email=DEMO_EMAIL,
+            password_hash=hash_password("demo-erpforge-2025"),
+            display_name="Demo Admin",
+            role="admin",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    run_seed(db)
 
     token = create_access_token(user.id, user.role)
     return TokenResponse(access_token=token, user=UserOut.model_validate(user))

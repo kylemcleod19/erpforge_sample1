@@ -32,6 +32,37 @@ import Stations from "./pages/Stations";
 import WorkOrders from "./pages/WorkOrders";
 
 const { Sider, Content } = Layout;
+const BANNER_HEIGHT = 36;
+
+function TopBanner() {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: BANNER_HEIGHT,
+        backgroundColor: "#1d39c4",
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 13,
+        zIndex: 1100,
+        gap: 8,
+      }}
+    >
+      <span>This site is under active development.</span>
+      <a
+        href="https://kyle-mcleod.io"
+        style={{ color: "#fff", textDecoration: "underline", fontWeight: 500 }}
+      >
+        Back to kyle-mcleod.io
+      </a>
+    </div>
+  );
+}
 
 const NAV_ITEMS = [
   { key: "/products", icon: <AppstoreOutlined />, label: <Link to="/products">Products</Link> },
@@ -67,8 +98,8 @@ function AppLayout() {
   }, []);
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <Sider width={220} theme="dark" style={{ position: "fixed", height: "100vh", overflow: "auto" }}>
+    <Layout style={{ minHeight: "100vh", paddingTop: BANNER_HEIGHT }}>
+      <Sider width={220} theme="dark" style={{ position: "fixed", top: BANNER_HEIGHT, height: `calc(100vh - ${BANNER_HEIGHT}px)`, overflow: "auto" }}>
         <div style={{ padding: "16px", textAlign: "center" }}>
           <Typography.Text strong style={{ color: "#fff", fontSize: 18 }}>
             ERPForge
@@ -148,7 +179,10 @@ export default function App() {
   return (
     <Router>
       <AuthProvider>
-        <AuthGate />
+        <TopBanner />
+        <div style={{ paddingTop: BANNER_HEIGHT }}>
+          <AuthGate />
+        </div>
       </AuthProvider>
     </Router>
   );

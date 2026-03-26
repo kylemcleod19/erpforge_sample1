@@ -41,6 +41,11 @@ export async function login(
   return data;
 }
 
+export async function demoLogin(): Promise<TokenResponse> {
+  const { data } = await client.post<TokenResponse>("/auth/demo-login");
+  return data;
+}
+
 export async function getMe(): Promise<UserOut> {
   const { data } = await client.get<UserOut>("/auth/me");
   return data;

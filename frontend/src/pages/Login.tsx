@@ -1,12 +1,13 @@
-import { LockOutlined, MailOutlined, UserOutlined } from "@ant-design/icons";
-import { Button, Card, Form, Input, message, Radio, Tabs, Typography } from "antd";
+import { LockOutlined, MailOutlined, RocketOutlined, UserOutlined } from "@ant-design/icons";
+import { Button, Card, Divider, Form, Input, message, Radio, Tabs, Typography } from "antd";
 import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function Login() {
-  const { login, register } = useAuth();
+  const { login, register, demoLogin } = useAuth();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [submitting, setSubmitting] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   const handleLogin = async (values: { email: string; password: string }) => {
     setSubmitting(true);
@@ -35,10 +36,22 @@ export default function Login() {
     }
   };
 
+  const handleDemoLogin = async () => {
+    setDemoLoading(true);
+    try {
+      await demoLogin();
+    } catch (e: any) {
+      message.error(e.message || "Demo login failed");
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
   return (
     <div
       style={{
         display: "flex",
+        flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
         minHeight: "100vh",
@@ -102,6 +115,19 @@ export default function Login() {
           ]}
         />
       </Card>
+      <Divider style={{ width: 420, minWidth: 420, margin: "16px 0 0" }}>or</Divider>
+      <Button
+        icon={<RocketOutlined />}
+        size="large"
+        loading={demoLoading}
+        onClick={handleDemoLogin}
+        style={{ marginTop: 8, width: 420 }}
+      >
+        Try Demo
+      </Button>
+      <Typography.Text type="secondary" style={{ marginTop: 8, fontSize: 12 }}>
+        Explore with a pre-loaded admin account and sample data
+      </Typography.Text>
     </div>
   );
 }
