@@ -7,4 +7,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["sh", "-c", "echo 'Starting backend...' && timeout 30 alembic upgrade head || echo 'WARNING: migrations failed or timed out' ; echo 'Starting uvicorn...' && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"]
+CMD ["sh", "-c", "\
+  echo 'Starting backend...' && \
+  python -c 'from app.main import app; print(\"Import OK\")' && \
+  timeout 30 alembic upgrade head || echo 'WARNING: migrations failed or timed out' ; \
+  echo 'Starting uvicorn...' && \
+  exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} \
+"]
