@@ -1,4 +1,4 @@
-import { CloseOutlined, PlusOutlined, RobotOutlined, SendOutlined } from "@ant-design/icons";
+import { CloseOutlined, PlusOutlined, QuestionCircleOutlined, SendOutlined } from "@ant-design/icons";
 import { Button, Drawer, Input, Typography } from "antd";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -68,7 +68,7 @@ export default function CopilotWidget({ initialPrompt, onPromptConsumed }: Copil
           type="primary"
           shape="circle"
           size="large"
-          icon={<RobotOutlined />}
+          icon={<QuestionCircleOutlined />}
           onClick={() => setOpen(true)}
           style={{
             position: "fixed",
@@ -88,7 +88,7 @@ export default function CopilotWidget({ initialPrompt, onPromptConsumed }: Copil
         title={
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <RobotOutlined style={{ color: "#52c41a" }} />
+              <QuestionCircleOutlined style={{ color: "#52c41a" }} />
               <span>ERPForge Assistant</span>
             </div>
             <Button
@@ -126,7 +126,7 @@ export default function CopilotWidget({ initialPrompt, onPromptConsumed }: Copil
         >
           {messages.length === 0 && (
             <div style={{ textAlign: "center", padding: "40px 24px" }}>
-              <RobotOutlined style={{ fontSize: 32, color: "#d9d9d9", display: "block", marginBottom: 12 }} />
+              <QuestionCircleOutlined style={{ fontSize: 32, color: "#d9d9d9", display: "block", marginBottom: 12 }} />
               <Text type="secondary">
                 Ask me anything about ERPForge. I can explain concepts, guide you through workflows,
                 and help you create data.

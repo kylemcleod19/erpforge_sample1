@@ -1,8 +1,8 @@
-import { RocketOutlined } from "@ant-design/icons";
-import { Button, Empty, Typography } from "antd";
+import { InboxOutlined, RocketOutlined } from "@ant-design/icons";
+import { Button, Typography } from "antd";
 import React from "react";
 
-const { Paragraph, Text } = Typography;
+const { Paragraph, Title, Text } = Typography;
 
 interface EmptyStateProps {
   title: string;
@@ -10,46 +10,57 @@ interface EmptyStateProps {
   actionLabel?: string;
   onAction?: () => void;
   workflowHint?: string;
+  icon?: React.ReactNode;
 }
 
-export default function EmptyState({ title, description, actionLabel, onAction, workflowHint }: EmptyStateProps) {
+export default function EmptyState({ title, description, actionLabel, onAction, workflowHint, icon }: EmptyStateProps) {
   return (
-    <div style={{ textAlign: "center", padding: "80px 0" }}>
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description={
-          <div>
-            <Text strong style={{ fontSize: 16, display: "block", marginBottom: 8 }}>
-              {title}
-            </Text>
-            <Paragraph type="secondary" style={{ maxWidth: 400, margin: "0 auto" }}>
-              {description}
-            </Paragraph>
-          </div>
-        }
+    <div style={{ display: "flex", justifyContent: "center", padding: "60px 24px" }}>
+      <div
+        style={{
+          maxWidth: 520,
+          width: "100%",
+          background: "#fff",
+          border: "1px solid #f0f0f0",
+          borderLeft: "4px solid #1677ff",
+          borderRadius: 8,
+          padding: "32px 32px 24px",
+        }}
       >
+        <div style={{ marginBottom: 16, fontSize: 36, color: "#1677ff", lineHeight: 1 }}>
+          {icon || <InboxOutlined />}
+        </div>
+
+        <Title level={4} style={{ margin: 0, marginBottom: 8 }}>
+          {title}
+        </Title>
+
+        <Paragraph type="secondary" style={{ marginBottom: workflowHint ? 16 : 20 }}>
+          {description}
+        </Paragraph>
+
         {workflowHint && (
-          <Paragraph
-            type="secondary"
+          <div
             style={{
-              maxWidth: 440,
-              margin: "0 auto 16px",
-              fontSize: 12,
-              background: "#fafafa",
-              padding: "8px 16px",
+              background: "#f6ffed",
+              border: "1px solid #b7eb8f",
+              padding: "10px 16px",
               borderRadius: 6,
+              marginBottom: 20,
+              fontSize: 13,
             }}
           >
-            <RocketOutlined style={{ marginRight: 6 }} />
-            {workflowHint}
-          </Paragraph>
+            <RocketOutlined style={{ marginRight: 6, color: "#52c41a" }} />
+            <Text type="secondary">{workflowHint}</Text>
+          </div>
         )}
+
         {actionLabel && onAction && (
-          <Button type="primary" onClick={onAction}>
+          <Button type="primary" size="large" onClick={onAction}>
             {actionLabel}
           </Button>
         )}
-      </Empty>
+      </div>
     </div>
   );
 }

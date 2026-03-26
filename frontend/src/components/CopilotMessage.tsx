@@ -1,4 +1,4 @@
-import { LinkOutlined, LoadingOutlined, RobotOutlined, ToolOutlined, UserOutlined } from "@ant-design/icons";
+import { LinkOutlined, LoadingOutlined, QuestionCircleOutlined, ToolOutlined, UserOutlined } from "@ant-design/icons";
 import { Button, Tag, Typography } from "antd";
 import React from "react";
 
@@ -75,7 +75,7 @@ export default function CopilotMessage({ message, onNavigate }: CopilotMessagePr
         {isUser ? (
           <UserOutlined style={{ color: "#1677ff" }} />
         ) : (
-          <RobotOutlined style={{ color: isError ? "#ff4d4f" : "#52c41a" }} />
+          <QuestionCircleOutlined style={{ color: isError ? "#ff4d4f" : "#52c41a" }} />
         )}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -98,7 +98,7 @@ export default function CopilotMessage({ message, onNavigate }: CopilotMessagePr
 export function StreamingIndicator() {
   return (
     <div style={{ padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
-      <RobotOutlined style={{ color: "#52c41a" }} />
+      <QuestionCircleOutlined style={{ color: "#52c41a" }} />
       <LoadingOutlined style={{ fontSize: 14 }} />
     </div>
   );
